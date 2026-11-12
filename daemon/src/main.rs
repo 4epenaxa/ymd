@@ -3,6 +3,7 @@
 //! P0-цель: проверить связку «плагин Noctalia → локальный HTTP/SSE → состояние».
 //! GStreamer, MPRIS и API Яндекса появятся в M1 (см. `docs/07-roadmap.md`).
 
+mod auth;
 mod doctor;
 mod httpd;
 mod session;
@@ -43,6 +44,31 @@ enum Command {
         #[arg(long, default_value_t = 8765)]
         port: u16,
     },
+    /// Авторизация: импорт токена и состояние аккаунта.
+    Auth {
+        #[command(subcommand)]
+        cmd: AuthCommand,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+enum AuthCommand {
+    /// Импортировать токен (из официального клиента или из ввода).
+    Import {
+        /// Взять токен из Local Storage официального клиента.
+        #[arg(long)]
+        from_official: bool,
+        /// Готовый токен или URL с #access_token=…
+        #[arg(long)]
+        token: Option<String>,
+        /// Только показать, что найдено, ничего не сохранять.
+        #[arg(long)]
+        dry_run: bool,
+    },
+    /// Показать, какой аккаунт привязан.
+    Status,
+    /// Удалить токен из keyring и состояния.
+    Logout,
 }
 
 #[tokio::main]
@@ -65,6 +91,71 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Command::Status { json, port } => status(json, port),
         Command::Ctl { op, port } => ctl(&op, port),
+        Command::Auth { cmd } => auth_cmd(cmd).await,
+    }
+}
+
+async fn auth_cmd(cmd: AuthCommand) -> Result<(), Box<dyn std::error::Error>> {
+    match cmd {
+        AuthCommand::Import {
+            from_official,
+            token,
+            dry_run,
+        } => {
+            // Приоритет: явный токен/URL, затем официальный клиент.
+            let found = match token {
+                Some(input) => auth::token_from_input(&input)?,
+                None => {
+                    if !from_official {
+                        eprintln!("укажи --token <токен|URL> или --from-official");
+                        std::process::exit(2);
+                    }
+                    auth::token_from_official_client()?
+                }
+            };
+
+            println!("найден токен: {}", auth::mask(&found));
+
+            if dry_run {
+                println!("dry-run: токен не сохранён");
+                return Ok(());
+            }
+
+            let account = auth::validate(&found).await?;
+            let saved = auth::save(&account, &found)?;
+            println!(
+                "сохранено: login={} uid={} plus={} backend={}",
+                saved.login, saved.uid, saved.has_plus, saved.backend
+            );
+            if saved.backend == "file" {
+                println!("внимание: keyring недоступен, токен лежит в {} (0600)", auth::file_token_path().display());
+            }
+            Ok(())
+        }
+        AuthCommand::Status => {
+            match auth::load_account() {
+                None => {
+                    println!("не авторизован");
+                    println!("import: ymd auth import --from-official");
+                }
+                Some(account) => {
+                    println!("login   {}", account.login);
+                    println!("uid     {}", account.uid);
+                    println!("plus    {}", account.has_plus);
+                    println!("backend {}", account.backend);
+                    match auth::load_token() {
+                        Some(token) => println!("token   {}", auth::mask(&token)),
+                        None => println!("token   ОТСУТСТВУЕТ (keyring/файл пуст)"),
+                    }
+                }
+            }
+            Ok(())
+        }
+        AuthCommand::Logout => {
+            let removed = auth::logout()?;
+            println!("{}", if removed { "токен удалён" } else { "нечего удалять" });
+            Ok(())
+        }
     }
 }
 

@@ -188,17 +188,30 @@ Fallback на P0/M1: `mpv --no-video --ao=pipewire` (mpv установлен), 
 `noctalia.focusedOutputName()` + поведение бара (Noctalia сама скрывает бар в fullscreen),
 либо косвенно по `niri msg --json layers`.
 
-## S9. OAuth
+## S9. OAuth — заменён на импорт токена
+
+Своё приложение в Яндекс ID зарегистрировано, но **раздела «Доступ к API» в свойствах
+нет** — значит новые приложения не могут запросить `music:*`, а публичная
+документация Музыкального API удалена (404). Loopback-поток с музыкой недоступен.
 
 | Проверка | Результат |
 |---|---|
-| свой client_id | не зарегистрирован |
-| `response_type=code` | не проверено |
-| loopback callback | не проверено |
-| обмен кода на токен | не проверено |
+| свой client_id | приложение создано, но без scope `music:*` |
+| `response_type=code` + PKCE | поддерживается Яндексом (по документации), но бесполезен без scope |
+| импорт токена из официального клиента | ✅ `ymd auth import --from-official` |
+| источник | `~/.config/YandexMusic/Local Storage/leveldb/*` — токен `y0_…` открытым текстом |
+| валидация | `GET /account/about` → `login=pbolkhovitin`, `uid=12967407`, `hasPlus=true` |
+| хранение | GNOME Keyring (`secret-tool`), `backend=keyring`; файл `0600` — фоллбэк |
+| доступ к Музыке | ✅ `/search` с токеном: 20 треков |
 
-Блокер: нужен OAuth-клиент в Яндекс ID с `redirect_uri` на `http://127.0.0.1:<port>/callback`
-(действие пользователя в веб-интерфейсе). До этого — `ymd auth import` (вставка токена).
+### Важное различие схемы ответа
+
+| Запрос | Форма |
+|---|---|
+| `/search` **без** токена | плоский объект (`tracks`, `albums`, …) |
+| `/search` **с** токеном | `{"invocationInfo": …, "result": {…}}` |
+
+Клиент должен поддерживать обе формы (уже сделано в `yandex-music-research/client`).
 
 ## Решения по итогам
 
