@@ -57,8 +57,27 @@ entry = "bridge.luau"
 3. **Один акцент**: `primary` только для состояния `playing`; `on_surface` — текст;
    `error` — ошибка.
 
+### Фактический API `barWidget` (проверено, Noctalia v5.4.1)
+
+Доступно ровно 12 методов:
+
+~~~text
+clearTooltip  isVertical  outputName  render  setColor  setFont
+setGlyph      setGlyphColor  setImage  setText  setTooltip  setVisible
+~~~
+
+Чего **нет** (важно для дизайна):
+
+| Нет | Как обойти |
+|---|---|
+| `setProgress` | `ui.progress` внутри виджета или текстовый индикатор |
+| `setWidth` | ширина — из конфига бара / `ui`-дерева |
+| `setBadge` | `setText` с префиксом или `ui.row` |
+| `setOpacity` | прозрачность — только у `ui.box` |
+| `setIcon`, `setTextColor`, `setIconColor` | `setGlyph` + `setColor`/`setGlyphColor` |
+
 ~~~lua
--- widget.luau (эскиз; точные имена barWidget.* уточняются в P0)
+-- widget.luau (эскиз; имена barWidget.* подтверждены на v5.4.1)
 local s = { status = "idle", title = "", artist = "", liked = false }
 
 local GLYPH = {

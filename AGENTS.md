@@ -21,9 +21,9 @@
 | `daemon/src/state.rs` | состояние + симулированный плеер (тик 1 Гц) | P0-заглушка |
 | `daemon/src/session.rs` | capability-ключ `0600` | готов |
 | `plugin/widget.luau` | бар: глиф + «Трек — Артист» | P0 |
-| `plugin/probe.luau` | дамп `barWidget.*`/`ui.*`/`noctalia.*` | P0 (S2/S3/S5) |
-| `plugin/bridge.luau` | SSE-подписка | P0 (S4) |
-| `plugin/panel.luau` | `ui.*`-дерево | P0 (S3) |
+| `plugin/probe.luau` | дамп `barWidget.*`/`ui.*`/`noctalia.*` | P0 ✅ (S2/S3/S5) |
+| `plugin/bridge.luau` | SSE-подписка | P0 ✅ (S4) |
+| `plugin/panel.luau` | `ui.*`-дерево | P0 ✅ (S3) |
 
 ## Ограничения окружения агента
 
@@ -44,8 +44,19 @@
 
 ## Следующий шаг
 
-Пройти S1–S9 (`docs/09-p0-spikes.md`), заполнить `notes/p0-findings.md`, затем
-править `docs/03`/`docs/04` по фактам и начинать M1 (GStreamer + MPRIS + auth).
+Пройти остаток P0 (`docs/09-p0-spikes.md`), факты — в `notes/p0-findings.md`:
+
+- **S1** — уточнить максимум `plugin_api` (35 принимается).
+- **S6** — MPRIS-сервер в демоне (`zbus`, чисто Rust, без dev-пакетов).
+- **S7** — заблокирован: нет `gstreamer1-devel`; обходной путь — `mpv --no-video`.
+- **S8** — нет поля `is_fullscreen` в `niri msg --json windows` (niri 26.04).
+- **S9** — заблокирован: нужен свой OAuth `client_id` с loopback `redirect_uri`.
+
+Проверено на хосте: `barWidget` — 12 методов (`setText/setGlyph/setImage/setTooltip/
+setColor/setGlyphColor/setFont/setVisible/clearTooltip/isVertical/outputName/render`),
+`ui` — 21 метод, панель открывается, SSE и чтение ключа из `$XDG_RUNTIME_DIR` работают.
+
+После P0 — M1 (backend плеера + MPRIS + auth).
 
 Связанный проект: `~/github/yandex-music-research` — реверс-инжиниринг официального
 клиента (API, подписи, `encraw`) и крейты `ym-api`/`ym-auth`/`ym-media`.

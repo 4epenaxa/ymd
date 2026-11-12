@@ -76,15 +76,16 @@ bash scripts/dev-install.sh        # плагин в Noctalia (drop-in)
 | Демон `ymd` (HTTP+SSE, CLI `status`/`ctl`/`doctor`) | скелет, собирается |
 | Плагин (bar, probe, bridge, panel) | скелет |
 | GStreamer, MPRIS, API Яндекса | M1 |
-| P0-спайки | **в работе — см. `notes/p0-findings.md`** |
+| P0-спайки | S1–S5 ✅, S6/S7/S8 частично, S9 заблокирован (client_id) |
+| Палитра (факт `getColor`) | `primary #C4B28A` на текущей теме |
 
 ## Окружение (проверено на хосте)
 
 - niri (Wayland), Noctalia **v5** (`~/.local/state/noctalia`, `settings.toml`).
 - Бар: `thickness = 34`, `radius = 12`, капсулы `surface_variant/0.6`, топ-бар.
 - В баре уже стоит виджет `media` (встроенный MPRIS).
-- Палитра: `primary #50d8ed`, `surface #0f141c`, `on_surface #dee2ef`,
-  `outline #3d4758`.
+- Палитра: берётся из `noctalia.getColor(role)`; фактическое значение на
+  2026-11-12 — `primary #C4B28A` (тема меняется, хардкод запрещён).
 - GStreamer/GTK dev-пакеты **не установлены** (понадобятся в M1).
 
 ## Связанные материалы
