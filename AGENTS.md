@@ -1,0 +1,51 @@
+# AGENTS.md — контекст проекта
+
+Клиент Яндекс Музыки для **niri + Noctalia v5**: бар-виджет + панель + Rust-демон.
+Этап: **P0-спайки**. Документация готова, скелет собран.
+
+## Читать в этом порядке
+
+1. `README.md` — обзор, структура, быстрый старт.
+2. `docs/01-concept.md` — зачем и как выглядит.
+3. `docs/02-architecture.md` — компоненты и IPC-контракт.
+4. `docs/09-p0-spikes.md` — что проверяем прямо сейчас (S1–S9).
+5. `docs/03-noctalia-plugin.md` / `docs/04-daemon.md` — детали слоёв.
+6. `notes/p0-findings.md` — факты, добытые на хосте.
+
+## Состояние кода
+
+| Путь | Что | Статус |
+|---|---|---|
+| `daemon/src/main.rs` | CLI: `serve`, `doctor`, `status`, `ctl` | готов (P0) |
+| `daemon/src/httpd.rs` | `/v1/health`, `/v1/state`, `/v1/cmd`, `/v1/events` (SSE) | готов (P0) |
+| `daemon/src/state.rs` | состояние + симулированный плеер (тик 1 Гц) | P0-заглушка |
+| `daemon/src/session.rs` | capability-ключ `0600` | готов |
+| `plugin/widget.luau` | бар: глиф + «Трек — Артист» | P0 |
+| `plugin/probe.luau` | дамп `barWidget.*`/`ui.*`/`noctalia.*` | P0 (S2/S3/S5) |
+| `plugin/bridge.luau` | SSE-подписка | P0 (S4) |
+| `plugin/panel.luau` | `ui.*`-дерево | P0 (S3) |
+
+## Ограничения окружения агента
+
+- **Нет shell-инструмента.** `cargo`, `git`, `sudo` выполняет пользователь;
+  агент пишет файлы и даёт точные команды. Не утверждать, что сборка проверена.
+- SSH на localhost недоступен (`Connection refused`) — тоже не обход.
+- Правки в `/etc` и установка пакетов — только через пользователя.
+
+## Правила
+
+- Плагин **не** обращается к API Яндекса и **не** хранит токен — только демон.
+- В плагине нет `#rrggbb`: цвета — `noctalia.getColor(role)`.
+- Ноль анимаций по умолчанию: никаких `setNeedsFrameTick`, marquee, интерполяций.
+- `runAsync` — только argv-форма (`plugin_api >= 24`), никаких `sh -c` с вводом.
+- `runAsync`/`http` — асинхронные: результат только в callback, не в `update()`.
+- Не писать в `pluginDir()` (перезаписывается) — только `pluginDataDir()`.
+- Факт попадает в `docs/` только после проверки; иначе — в `notes/p0-findings.md`.
+
+## Следующий шаг
+
+Пройти S1–S9 (`docs/09-p0-spikes.md`), заполнить `notes/p0-findings.md`, затем
+править `docs/03`/`docs/04` по фактам и начинать M1 (GStreamer + MPRIS + auth).
+
+Связанный проект: `~/github/yandex-music-research` — реверс-инжиниринг официального
+клиента (API, подписи, `encraw`) и крейты `ym-api`/`ym-auth`/`ym-media`.

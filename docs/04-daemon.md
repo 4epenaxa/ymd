@@ -1,0 +1,203 @@
+# 04. Демон `ymd`
+
+## Границы
+
+Демон — единственный, кто знает про Яндекс Музыку: токен, эндпоинты, подписи,
+медиа, кэш. Плагин видит только `/v1/*`. Демон не знает про Noctalia (кроме
+необязательного `open-panel` через `noctalia` CLI — лучше без этого).
+
+## Workspace
+
+~~~text
+ymd/
+├── crates/
+│   ├── ym-api/      # HTTP: заголовки, ретраи, эндпоинты, модели, подписи
+│   ├── ym-auth/     # OAuth loopback, libsecret, профили
+│   ├── ym-media/    # file-info, encraw, AES-CTR, кэш-файлы
+│   ├── ym-player/   # GStreamer, очередь, состояние
+│   ├── ym-mpris/    # zbus: MediaPlayer2 + Player
+│   ├── ym-env/      # niri IPC, idle, power
+│   ├── ymd/         # бинарь: httpd, mpris, wiring
+│   └── ymctl/       # CLI (входит в ymd как подкоманды)
+└── Cargo.toml
+~~~
+
+Переиспользуем наработки из `yandex-music-research/client` (`ym-api`, `ym-auth`,
+`ym-media` — уже собираются и покрыты тестами).
+
+~~~toml
+[workspace.dependencies]
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "signal"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "rustls-tls"] }
+axum = "0.8"                 # локальный HTTP + SSE
+zbus = "5"                   # MPRIS
+gstreamer = "0.23"
+niri-ipc = "25"              # следует версии niri
+rusqlite = { version = "0.32", features = ["bundled"] }
+keyring = { version = "3", features = ["linux-native"] }
+aes = "0.8"; ctr = "0.9"; hmac = "0.12"; sha2 = "0.10"; base64 = "0.22"
+tokio-tungstenite = "0.24"   # Ynison
+clap = { version = "4", features = ["derive"] }
+~~~
+
+## Модули
+
+### `auth`
+
+Поток (без ручного копирования токена):
+
+1. `ymd auth login` генерирует `state` + `PKCE` `verifier/challenge`.
+2. Поднимает `127.0.0.1:<port>/callback` (`tiny_http`), печатает URL, открывает
+   браузер (`xdg-open`).
+3. Пользователь входит; Яндекс редиректит на loopback с `code`.
+4. Обмен `code → access_token + refresh_token`, сохранение в libsecret:
+   `service=ymd, user=<login>`.
+5. `ymd auth status` / `ymd auth logout`.
+
+> Требуется **свой** OAuth-клиент: `redirect_uri` официального привязан к
+> `music-application://desktop` и loopback не примет. Доступность `response_type=code`
+> для публичных клиентов Яндекса — проверить в спайке P0 (`08-risks.md`).
+
+Фоллбэк: `ymd auth import` — вставить URL с `#access_token` (как в текущем
+`ymc login`), если свой клиент недоступен.
+
+### `api`
+
+Заголовки (`x-yandex-music-client`, `x-yandex-music-device`, `accept-language`),
+ретраи 429/5xx (2 попытки, backoff 300/900 мс), `x-request-id`, типизированные
+модели (`Track`, `Album`, `Artist`, `Playlist`, `Liked`). Схемы непубличные —
+неизвестные поля игнорируются (`#[serde(default)]`), ошибки валидации — в лог.
+
+### `player`
+
+~~~text
+GStreamer: playbin3 (uri = resolved stream url)
+  audio-sink = pipewiresink (fallback: autoaudiosink)
+  volume    = cubic, 0..1
+  about-to-finish → next()
+~~~
+
+- Очередь: `VecDeque<Track>` + `index`, `shuffle` (seed), `repeat (off|one|all)`.
+- `seek` — `SeekFlags::FLUSH | ACCURATE`; позиция — `query_position` раз в 250 мс
+  (только пока играет; наружу — по SSE с троттлингом 1 Гц).
+- Ошибки: `error`-сообщение GStreamer → `skip` + `notify` через плагин (`error` в state).
+- Фоллбэк без GStreamer-dev: `mpv --no-video` через `Command` (опция `player = "mpv"`).
+
+### `mpris`
+
+`org.mpris.MediaPlayer2.ymd` + `/Player`:
+
+| Свойство | Значение |
+|---|---|
+| `PlaybackStatus` | `Playing` / `Paused` / `Stopped` |
+| `Metadata` | `mpris:trackid`, `xesam:title`, `xesam:artist`, `xesam:album`, `mpris:length`, `mpris:artUrl` |
+| `Position` | мкс, из `player` |
+| `Volume` | 0..1 |
+| `CanSeek/CanGoNext/CanGoPrevious` | `true` |
+
+Методы: `Play`, `Pause`, `PlayPause`, `Stop`, `Next`, `Previous`, `Seek`, `SetPosition`,
+`Set`(`Volume`). Сигнал `Seeked`.
+
+Практический эффект: **встроенный виджет `media` Noctalia, медиа-клавиши, GNOME-шелл
+и lockscreen работают без нашего плагина.** Наш виджет — надстройка с
+яндекс-спецификой (лайк, волна, офлайн).
+
+### `cache`
+
+`~/.local/share/ymd/cache/` + SQLite:
+
+~~~sql
+CREATE TABLE track (id INTEGER PRIMARY KEY, title TEXT, artists TEXT,
+                    album_id INTEGER, duration_ms INTEGER, updated_at INTEGER);
+CREATE TABLE file  (track_id INTEGER, quality TEXT, path TEXT,
+                    bytes INTEGER, key BLOB, etag TEXT, complete INTEGER,
+                    PRIMARY KEY (track_id, quality));
+CREATE TABLE queue_state (id INTEGER PRIMARY KEY CHECK (id = 1),
+                          payload TEXT, updated_at INTEGER);
+~~~
+
+- Загрузка: `encraw` чанками (`Range`), расшифровка AES-128-CTR
+  (counter = `offset/16`, `skip = offset%16`), запись `.part` → rename.
+- LRU: лимит `cache_limit_gb` (по умолчанию 5), вытеснение по `last_played`.
+- Проверка целостности: размер + `sha256` из `file-info` (если отдан).
+
+### `ynison`
+
+Опционально (`ynison = false` по умолчанию): WebSocket-подписка на состояние
+аккаунта, `PutYnisonState` при локальных изменениях, `Device-Id` = `uuid` из
+конфига. Не блокирует основной путь: без него плеер полностью работоспособен.
+
+### `env`
+
+- niri: подключение к `$NIRI_SOCKET`, `Request::EventStream`; отслеживаем
+  `WorkspaceActivated`, `WindowFocusChanged`, `WindowOpenedOrChanged` (fullscreen).
+  Кратковременный разрыв сокета — реконнект 1 с.
+- Idle: `ext-idle-notify-v1` через `noctalia` не нужен демону — берём из
+  `logind` (`IdleHint`) или оставляем плагину.
+- Power: `UPower` `OnBattery` → `compact`.
+- Результат: `env{fullscreen, overview, idle, onBattery}` в `/v1/state` и правило
+  `ui.mode` (`03`).
+
+## Конфигурация
+
+`~/.config/ymd/config.toml`:
+
+~~~toml
+[http]
+port = 8765            # 0 = только UNIX-socket
+bind = "127.0.0.1"
+
+[player]
+backend = "gstreamer"  # gstreamer | mpv
+quality = "hq"         # lossless | hq | nq | lq
+crossfade_ms = 0       # 0 = выключено
+
+[cache]
+enabled = true
+limit_gb = 5
+dir = "~/.local/share/ymd/cache"
+
+[env]
+follow_niri = true
+idle_minutes = 10
+compact_on_battery = true
+
+[ynison]
+enabled = false
+~~~
+
+## systemd (user)
+
+~~~ini
+[Unit]
+Description=Yandex Music daemon
+After=network-online.target
+PartOf=graphical-session.target
+
+[Service]
+ExecStart=%h/.local/bin/ymd serve
+Restart=on-failure
+RestartSec=1
+Environment=RUST_LOG=ymd=info
+
+[Install]
+WantedBy=graphical-session.target
+~~~
+
+`ymd serve` пишет `$XDG_RUNTIME_DIR/ymd/session.key` (`0600`) при старте; плагин
+читает его для `X-YMD-Session`.
+
+## CLI
+
+| Команда | Смысл |
+|---|---|
+| `ymd auth login` / `status` / `logout` | авторизация |
+| `ymd play <id\|url>`, `pause`, `toggle`, `next`, `prev` | управление |
+| `ymd status --json` | снимок состояния (для скриптов и отладки) |
+| `ymd search "…"` | поиск в терминале |
+| `ymd download <trackId>` | офлайн |
+| `ymd serve` | запуск демона (для systemd) |
+| `ymd doctor` | проверки: keyring, GStreamer, niri socket, API, токен |
+
+`ymd doctor` — важный инструмент поддержки: печатает таблицу «что работает / что нет»
+без секретов.
