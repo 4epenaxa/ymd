@@ -55,8 +55,14 @@ clap = { version = "4", features = ["derive"] }
 5. `ymd auth status` / `ymd auth logout`.
 
 > Требуется **свой** OAuth-клиент: `redirect_uri` официального привязан к
-> `music-application://desktop` и loopback не примет. Доступность `response_type=code`
-> для публичных клиентов Яндекса — проверить в спайке P0 (`08-risks.md`).
+> `music-application://desktop` и loopback не примет.
+>
+> Регистрация проверена по документации 2026-11-12: `response_type=code` и PKCE
+> (`S256`) поддерживаются, код живёт 10 минут, при `code_verifier` `client_secret`
+> не нужен. Пошаговая инструкция — [`10-oauth-registration.md`](10-oauth-registration.md).
+>
+> Не подтверждено: доступна ли группа scope `music:*` новым приложениям (документация
+> Музыкального API закрыта). Проверяется в свойствах приложения за минуту.
 
 Фоллбэк: `ymd auth import` — вставить URL с `#access_token` (как в текущем
 `ymc login`), если свой клиент недоступен.

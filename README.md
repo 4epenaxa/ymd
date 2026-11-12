@@ -35,7 +35,7 @@ ym-noctalia/
 │   ├── panel.luau           # S3: декларативное ui.* дерево
 │   └── lib/ymd.luau         # мини-клиент демона
 ├── scripts/                 # p0-check.sh, dev-install.sh, sse-watch.sh
-├── docs/                    # 01…09 (концепт, архитектура, плагин, демон, …)
+├── docs/                    # 01…10 (концепт, архитектура, плагин, демон, OAuth, …)
 └── notes/p0-findings.md     # заполняется по итогам спайков
 ~~~
 
