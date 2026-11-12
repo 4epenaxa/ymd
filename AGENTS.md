@@ -24,6 +24,8 @@
 | `plugin/probe.luau` | дамп `barWidget.*`/`ui.*`/`noctalia.*` | P0 ✅ (S2/S3/S5) |
 | `plugin/bridge.luau` | SSE-подписка | P0 ✅ (S4) |
 | `plugin/panel.luau` | `ui.*`-дерево | P0 ✅ (S3) |
+| `daemon/src/api.rs` | HTTP-клиент API + `stream` | M1 ✅ (кроме потока) |
+| `daemon/src/mpris.rs` | внешний MPRIS через `playerctl` | M1 ✅ (временный) |
 
 ## Ограничения окружения агента
 
@@ -56,7 +58,10 @@
 setColor/setGlyphColor/setFont/setVisible/clearTooltip/isVertical/outputName/render`),
 `ui` — 21 метод, панель открывается, SSE и чтение ключа из `$XDG_RUNTIME_DIR` работают.
 
-После P0 — M1 (backend плеера + MPRIS + auth).
+M1 в работе: API-клиент, `ymd search/track/album/artist`, MPRIS-мост работают.
+Блокер: прямой поток Яндекса (`file-info` 403, `download-info` → 401) — см.
+`notes/m1-findings.md`. Дальше: панель с поиском/очередью, затем возврат к
+собственному плееру (GStreamer + исходящий MPRIS).
 
 Связанный проект: `~/github/yandex-music-research` — реверс-инжиниринг официального
 клиента (API, подписи, `encraw`) и крейты `ym-api`/`ym-auth`/`ym-media`.

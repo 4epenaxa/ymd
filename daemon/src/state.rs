@@ -4,6 +4,7 @@
 //! M1 заменяет `tick()` и `command()` на GStreamer, внешний контракт (`/v1/state`)
 //! при этом не меняется.
 
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
 
@@ -106,6 +107,8 @@ impl Default for State {
 pub struct AppState {
     inner: Arc<RwLock<State>>,
     tx: broadcast::Sender<String>,
+    /// true, когда состоянием управляет внешний MPRIS-плеер.
+    external: Arc<AtomicBool>,
 }
 
 impl AppState {
@@ -114,6 +117,7 @@ impl AppState {
         Self {
             inner: Arc::new(RwLock::new(State::default())),
             tx,
+            external: Arc::new(AtomicBool::new(false)),
         }
     }
 
@@ -130,6 +134,13 @@ impl AppState {
 
     /// Выполняет команду и рассылает новое состояние подписчикам SSE.
     pub fn command(&self, op: &str) -> Result<u64, String> {
+        // Внешний плеер: команду выполняет MPRIS, состояние подтягиваем сразу же.
+        if self.external.load(Ordering::Relaxed) && crate::mpris::send(op) {
+            if let Some(snapshot) = crate::mpris::poll() {
+                return Ok(self.apply_mpris(snapshot));
+            }
+        }
+
         let snapshot = {
             let mut st = self
                 .inner
@@ -211,6 +222,50 @@ impl AppState {
         self.publish(&snapshot);
     }
 
+    /// Применяет снимок внешнего MPRIS-плеера. Возвращает новую ревизию.
+    pub fn apply_mpris(&self, snapshot: crate::mpris::Snapshot) -> u64 {
+        let next = {
+            let mut st = match self.inner.write() {
+                Ok(guard) => guard,
+                Err(_) => return 0,
+            };
+
+            let status = match snapshot.status.as_str() {
+                "playing" => "playing",
+                "paused" => "paused",
+                _ => "stopped",
+            };
+            let changed = st.status != status
+                || st.position_ms.abs_diff(snapshot.position_ms) > 1500
+                || st
+                    .track
+                    .as_ref()
+                    .map(|t| t.title != snapshot.title)
+                    .unwrap_or(true);
+
+            st.status = status.to_string();
+            st.position_ms = snapshot.position_ms;
+            st.queue.length = 0;
+            st.queue.index = 0;
+            st.track = Some(Track {
+                id: snapshot.player.clone(),
+                title: snapshot.title,
+                artists: snapshot.artists,
+                album: snapshot.album,
+                duration_ms: snapshot.duration_ms,
+                liked: false,
+            });
+
+            if changed {
+                st.rev += 1;
+            }
+            st.clone()
+        };
+
+        self.publish(&next);
+        next.rev
+    }
+
     fn publish(&self, state: &State) {
         if let Ok(text) = serde_json::to_string(state) {
             // Ошибка отправки = нет подписчиков, это нормально.
@@ -224,7 +279,16 @@ impl AppState {
             let mut ticker = tokio::time::interval(Duration::from_secs(1));
             loop {
                 ticker.tick().await;
-                app.tick();
+                match crate::mpris::poll() {
+                    Some(snapshot) => {
+                        app.external.store(true, Ordering::Relaxed);
+                        app.apply_mpris(snapshot);
+                    }
+                    None => {
+                        app.external.store(false, Ordering::Relaxed);
+                        app.tick();
+                    }
+                }
             }
         });
     }
