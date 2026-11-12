@@ -323,7 +323,7 @@ fn status(json: bool, port: u16) -> Result<(), Box<dyn std::error::Error>> {
     let track = state
         .track
         .as_ref()
-        .map(|track| format!("{} — {}", track.title, track.artists.join(", ")))
+        .map(|track| format!("{} — {}", track.title, track.artist_line()))
         .unwrap_or_else(|| "—".to_string());
     let duration = state
         .track

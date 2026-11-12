@@ -7,7 +7,7 @@ use std::convert::Infallible;
 use std::io::{Read, Write};
 
 use axum::{
-    extract::State as AxumState,
+    extract::{Query, State as AxumState},
     http::{HeaderMap, StatusCode},
     response::{
         sse::{Event, KeepAlive, Sse},
@@ -43,6 +43,7 @@ pub async fn serve(
     let router = Router::new()
         .route("/v1/health", get(health))
         .route("/v1/state", get(get_state))
+        .route("/v1/search", get(search))
         .route("/v1/cmd", post(cmd))
         .route("/v1/events", get(events))
         .with_state(shared);
@@ -76,6 +77,8 @@ async fn get_state(
 #[derive(Deserialize)]
 struct CmdRequest {
     op: String,
+    #[serde(default)]
+    payload: Option<serde_json::Value>,
 }
 
 async fn cmd(
@@ -90,10 +93,100 @@ async fn cmd(
         ));
     }
 
-    match shared.app.command(&request.op) {
+    match shared.app.command(&request.op, request.payload.as_ref()) {
         Ok(rev) => Ok(Json(serde_json::json!({ "ok": true, "rev": rev }))),
         Err(err) => Err((StatusCode::BAD_REQUEST, err)),
     }
+}
+
+#[derive(Deserialize)]
+struct SearchParams {
+    q: String,
+    #[serde(default)]
+    page: Option<u32>,
+}
+
+/// `GET /v1/search?q=...` — поиск через API Яндекса, упрощённый для виджета.
+async fn search(
+    AxumState(shared): AxumState<Shared>,
+    headers: HeaderMap,
+    Query(params): Query<SearchParams>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    if !authorized(&headers, &shared.key) {
+        return Err((StatusCode::UNAUTHORIZED, "bad session".to_string()));
+    }
+
+    let text = params.q.trim().to_string();
+    if text.is_empty() {
+        return Ok(Json(serde_json::json!({ "query": "", "tracks": [] })));
+    }
+
+    let client = crate::api::Client::from_store().map_err(|err| {
+        (
+            StatusCode::SERVICE_UNAVAILABLE,
+            format!("нет токена: {err}; выполните ymd auth import --from-official"),
+        )
+    })?;
+
+    let value = client
+        .search(&text, params.page.unwrap_or(0))
+        .await
+        .map_err(|err| (StatusCode::BAD_GATEWAY, err.to_string()))?;
+
+    Ok(Json(serde_json::json!({
+        "query": text,
+        "tracks": simplify_tracks(&value),
+    })))
+}
+
+/// Приводит ответ `/search` к плоскому списку треков для плагина.
+fn simplify_tracks(value: &serde_json::Value) -> Vec<serde_json::Value> {
+    let items = value
+        .pointer("/tracks/results")
+        .or_else(|| value.pointer("/result/tracks/results"))
+        .and_then(serde_json::Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+
+    items
+        .iter()
+        .filter_map(|item| {
+            let id = item.get("id")?.as_u64()?.to_string();
+            let title = item
+                .get("title")
+                .and_then(serde_json::Value::as_str)
+                .unwrap_or("Без названия")
+                .to_string();
+            let artists: Vec<String> = item
+                .get("artists")
+                .and_then(serde_json::Value::as_array)
+                .map(|artists| {
+                    artists
+                        .iter()
+                        .filter_map(|a| a.get("name").and_then(serde_json::Value::as_str))
+                        .map(str::to_string)
+                        .collect()
+                })
+                .unwrap_or_default();
+            let duration_ms = item
+                .get("durationMs")
+                .and_then(serde_json::Value::as_u64)
+                .unwrap_or(0);
+            let album = item
+                .pointer("/albums/0/title")
+                .and_then(serde_json::Value::as_str)
+                .map(str::to_string);
+
+            Some(serde_json::json!({
+                "id": id,
+                "title": title,
+                "artists": artists,
+                "album": album,
+                "durationMs": duration_ms,
+                "liked": false,
+            }))
+        })
+        .collect()
 }
 
 async fn events(

@@ -84,6 +84,39 @@ function M.cmd(op, cb)
   end)
 end
 
+-- POST /v1/cmd { op = "...", payload = {...} }
+function M.cmd_payload(op, payload, cb)
+  local key = M.key()
+  if not key then
+    if cb then cb(false) end
+    return
+  end
+
+  noctalia.http({
+    url = M.base .. "/v1/cmd",
+    method = "POST",
+    headers = {
+      "X-YMD-Session: " .. key,
+      "Content-Type: application/json",
+    },
+    body = noctalia.json.encode({ op = op, payload = payload }),
+  }, function(resp)
+    if cb then cb(code_of(resp) == 200) end
+  end)
+end
+
+-- Percent-encoding для query-строк (ASCII + UTF-8 байты).
+function M.urlencode(text)
+  return (tostring(text):gsub("[^%w%-%._~]", function(char)
+    return string.format("%%%02X", string.byte(char))
+  end))
+end
+
+-- GET /v1/search?q=...
+function M.search(query, cb)
+  M.get("/v1/search?q=" .. M.urlencode(query), cb)
+end
+
 -- SSE: on_state(table), on_close(reason)
 function M.subscribe(on_state, on_close)
   local key = M.key()

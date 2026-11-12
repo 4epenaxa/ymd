@@ -1,32 +1,67 @@
 //! Состояние плеера и команды.
 //!
-//! В P0 здесь «симулированный» плеер: позиция растёт по таймеру, звука нет.
-//! M1 заменяет `tick()` и `command()` на GStreamer, внешний контракт (`/v1/state`)
-//! при этом не меняется.
+//! Контракт `/v1/state` — camelCase (его читает плагин). Пока прямой поток
+//! Яндекса закрыт, источником может быть внешний MPRIS-плеер; когда появится
+//! собственный GStreamer-плеер, меняется только `tick()`.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use tokio::sync::broadcast;
 
 pub const CHANNEL_CAPACITY: usize = 64;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Track {
     pub id: String,
     pub title: String,
+    #[serde(default)]
     pub artists: Vec<String>,
     #[serde(default)]
     pub album: Option<String>,
+    #[serde(default)]
     pub duration_ms: u64,
     #[serde(default)]
     pub liked: bool,
 }
 
+impl Track {
+    pub fn artist_line(&self) -> String {
+        self.artists.join(", ")
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct QueueItem {
+    pub id: String,
+    pub title: String,
+    #[serde(default)]
+    pub artists: Vec<String>,
+    #[serde(default)]
+    pub duration_ms: u64,
+}
+
+impl From<&Track> for QueueItem {
+    fn from(track: &Track) -> Self {
+        Self {
+            id: track.id.clone(),
+            title: track.title.clone(),
+            artists: track.artists.clone(),
+            duration_ms: track.duration_ms,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Queue {
+    #[serde(default)]
+    pub items: Vec<QueueItem>,
     pub length: usize,
     pub index: usize,
     pub shuffle: bool,
@@ -36,6 +71,7 @@ pub struct Queue {
 impl Default for Queue {
     fn default() -> Self {
         Self {
+            items: Vec::new(),
             length: 0,
             index: 0,
             shuffle: false,
@@ -44,7 +80,14 @@ impl Default for Queue {
     }
 }
 
+impl Queue {
+    fn sync_length(&mut self) {
+        self.length = self.items.len();
+    }
+}
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct EnvState {
     pub fullscreen: bool,
     pub overview: bool,
@@ -53,6 +96,7 @@ pub struct EnvState {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct UiState {
     pub mode: String,
 }
@@ -66,6 +110,7 @@ impl Default for UiState {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct State {
     pub rev: u64,
     pub status: String,
@@ -82,20 +127,10 @@ impl Default for State {
         Self {
             rev: 0,
             status: "paused".to_string(),
-            track: Some(Track {
-                id: "demo".to_string(),
-                title: "Demo Track".to_string(),
-                artists: vec!["ymd".to_string()],
-                album: None,
-                duration_ms: 180_000,
-                liked: false,
-            }),
+            track: None,
             position_ms: 0,
             volume: 0.8,
-            queue: Queue {
-                length: 3,
-                ..Queue::default()
-            },
+            queue: Queue::default(),
             env: EnvState::default(),
             ui: UiState::default(),
         }
@@ -132,10 +167,15 @@ impl AppState {
         self.tx.subscribe()
     }
 
+    pub fn is_external(&self) -> bool {
+        self.external.load(Ordering::Relaxed)
+    }
+
     /// Выполняет команду и рассылает новое состояние подписчикам SSE.
-    pub fn command(&self, op: &str) -> Result<u64, String> {
-        // Внешний плеер: команду выполняет MPRIS, состояние подтягиваем сразу же.
-        if self.external.load(Ordering::Relaxed) && crate::mpris::send(op) {
+    pub fn command(&self, op: &str, payload: Option<&Value>) -> Result<u64, String> {
+        // Внешний плеер умеет только транспортные команды; остальное — локально.
+        let transport = matches!(op, "toggle" | "play" | "pause" | "next" | "prev");
+        if transport && self.is_external() && crate::mpris::send(op) {
             if let Some(snapshot) = crate::mpris::poll() {
                 return Ok(self.apply_mpris(snapshot));
             }
@@ -157,21 +197,12 @@ impl AppState {
                 }
                 "play" => st.status = "playing".to_string(),
                 "pause" => st.status = "paused".to_string(),
-                "next" => {
-                    if st.queue.length > 0 {
-                        st.queue.index = (st.queue.index + 1) % st.queue.length;
-                    }
-                    st.position_ms = 0;
-                }
-                "prev" => {
-                    if st.queue.length > 0 {
-                        st.queue.index = (st.queue.index + st.queue.length - 1) % st.queue.length;
-                    }
-                    st.position_ms = 0;
-                }
+                "next" => advance(&mut st, 1),
+                "prev" => advance(&mut st, -1),
                 "like" => {
+                    let liked = st.track.as_ref().map(|t| !t.liked).unwrap_or(false);
                     if let Some(track) = st.track.as_mut() {
-                        track.liked = !track.liked;
+                        track.liked = liked;
                     }
                 }
                 "wave" => {}
@@ -180,6 +211,63 @@ impl AppState {
                         "compact".to_string()
                     } else {
                         "full".to_string()
+                    };
+                }
+                "play_track" => {
+                    let track = track_from_payload(payload)?;
+                    st.queue.items.push(QueueItem::from(&track));
+                    st.queue.index = st.queue.items.len() - 1;
+                    st.queue.sync_length();
+                    st.track = Some(track);
+                    st.position_ms = 0;
+                    st.status = "playing".to_string();
+                }
+                "enqueue" => {
+                    let track = track_from_payload(payload)?;
+                    st.queue.items.push(QueueItem::from(&track));
+                    if st.track.is_none() {
+                        st.track = Some(track);
+                        st.status = "paused".to_string();
+                    }
+                    st.queue.sync_length();
+                }
+                "queue_play" => {
+                    let index = payload
+                        .and_then(|v| v.get("index"))
+                        .and_then(Value::as_u64)
+                        .ok_or_else(|| "queue_play: нужен index".to_string())?
+                        as usize;
+                    if index >= st.queue.items.len() {
+                        return Err(format!("queue_play: нет индекса {index}"));
+                    }
+                    st.queue.index = index;
+                    st.track = Some(track_from_queue_item(&st.queue.items[index]));
+                    st.position_ms = 0;
+                    st.status = "playing".to_string();
+                }
+                "queue_clear" => {
+                    st.queue.items.clear();
+                    st.queue.index = 0;
+                    st.queue.sync_length();
+                }
+                "volume" => {
+                    let value = payload
+                        .and_then(|v| v.get("value"))
+                        .and_then(Value::as_f64)
+                        .ok_or_else(|| "volume: нужно value".to_string())?;
+                    st.volume = value.clamp(0.0, 1.0);
+                }
+                "seek" => {
+                    let position = payload
+                        .and_then(|v| v.get("positionMs"))
+                        .or_else(|| payload.and_then(|v| v.get("position_ms")))
+                        .and_then(Value::as_u64)
+                        .ok_or_else(|| "seek: нужен positionMs".to_string())?;
+                    let duration = st.track.as_ref().map(|t| t.duration_ms).unwrap_or(0);
+                    st.position_ms = if duration > 0 {
+                        position.min(duration)
+                    } else {
+                        position
                     };
                 }
                 other => return Err(format!("unknown op: {other}")),
@@ -209,10 +297,7 @@ impl AppState {
             st.position_ms = st.position_ms.saturating_add(1000);
 
             if duration > 0 && st.position_ms >= duration {
-                st.position_ms = 0;
-                if st.queue.length > 0 {
-                    st.queue.index = (st.queue.index + 1) % st.queue.length;
-                }
+                advance(&mut st, 1);
             }
 
             st.rev += 1;
@@ -245,8 +330,10 @@ impl AppState {
 
             st.status = status.to_string();
             st.position_ms = snapshot.position_ms;
-            st.queue.length = 0;
+            // Очередью внешнего плеера не управляем.
+            st.queue.items.clear();
             st.queue.index = 0;
+            st.queue.sync_length();
             st.track = Some(Track {
                 id: snapshot.player.clone(),
                 title: snapshot.title,
@@ -297,5 +384,148 @@ impl AppState {
 impl Default for AppState {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+/// Шаг по очереди: +1 — следующий, -1 — предыдущий.
+fn advance(state: &mut State, delta: isize) {
+    let len = state.queue.items.len();
+    if len == 0 {
+        state.position_ms = 0;
+        return;
+    }
+    let len_i = len as isize;
+    let index = (state.queue.index as isize + delta).rem_euclid(len_i) as usize;
+    state.queue.index = index;
+    state.track = Some(track_from_queue_item(&state.queue.items[index]));
+    state.position_ms = 0;
+}
+
+fn track_from_queue_item(item: &QueueItem) -> Track {
+    Track {
+        id: item.id.clone(),
+        title: item.title.clone(),
+        artists: item.artists.clone(),
+        album: None,
+        duration_ms: item.duration_ms,
+        liked: false,
+    }
+}
+
+/// Разбирает трек из payload команды. Принимает и camelCase, и snake_case.
+fn track_from_payload(payload: Option<&Value>) -> Result<Track, String> {
+    let value = payload.ok_or_else(|| "нужен payload с треком".to_string())?;
+    let field = |name: &str| -> Option<&Value> {
+        value.get(name).or_else(|| match name {
+            "durationMs" => value.get("duration_ms"),
+            "duration_ms" => value.get("durationMs"),
+            _ => None,
+        })
+    };
+
+    let id = field("id")
+        .and_then(|v| {
+            v.as_str()
+                .map(str::to_string)
+                .or_else(|| v.as_u64().map(|n| n.to_string()))
+        })
+        .ok_or_else(|| "track: нет id".to_string())?;
+
+    let title = field("title")
+        .and_then(Value::as_str)
+        .unwrap_or("Без названия")
+        .to_string();
+
+    let artists = field("artists")
+        .and_then(Value::as_array)
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|v| v.as_str().map(str::to_string))
+                .collect()
+        })
+        .unwrap_or_default();
+
+    let duration_ms = field("durationMs").and_then(Value::as_u64).unwrap_or(0);
+    let album = field("album")
+        .and_then(Value::as_str)
+        .map(str::to_string);
+
+    Ok(Track {
+        id,
+        title,
+        artists,
+        album,
+        duration_ms,
+        liked: false,
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn track_json() -> Value {
+        serde_json::json!({
+            "id": "123",
+            "title": "Кино",
+            "artists": ["MACAN"],
+            "durationMs": 184000
+        })
+    }
+
+    #[test]
+    fn state_serializes_camel_case() {
+        let mut state = State::default();
+        state.track = Some(Track {
+            id: "1".into(),
+            title: "T".into(),
+            artists: vec!["A".into()],
+            album: None,
+            duration_ms: 1000,
+            liked: false,
+        });
+        let json = serde_json::to_string(&state).unwrap();
+        assert!(json.contains("\"positionMs\""));
+        assert!(json.contains("\"durationMs\""));
+        assert!(!json.contains("position_ms"));
+    }
+
+    #[test]
+    fn play_track_sets_current_and_queue() {
+        let app = AppState::new();
+        app.command("play_track", Some(&track_json())).unwrap();
+        let state = app.snapshot();
+        assert_eq!(state.track.as_ref().unwrap().title, "Кино");
+        assert_eq!(state.queue.length, 1);
+        assert_eq!(state.status, "playing");
+    }
+
+    #[test]
+    fn enqueue_then_advance_wraps() {
+        let app = AppState::new();
+        app.command("enqueue", Some(&track_json())).unwrap();
+        app.command("enqueue", Some(&track_json())).unwrap();
+        app.command("play", None).unwrap();
+        assert_eq!(app.snapshot().queue.length, 2);
+        app.command("next", None).unwrap();
+        assert_eq!(app.snapshot().queue.index, 1);
+        app.command("next", None).unwrap();
+        assert_eq!(app.snapshot().queue.index, 0);
+    }
+
+    #[test]
+    fn seek_is_clamped() {
+        let app = AppState::new();
+        app.command("play_track", Some(&track_json())).unwrap();
+        app.command("seek", Some(&serde_json::json!({ "positionMs": 999_999 })))
+            .unwrap();
+        assert_eq!(app.snapshot().position_ms, 184_000);
+    }
+
+    #[test]
+    fn unknown_op_is_error() {
+        let app = AppState::new();
+        assert!(app.command("nope", None).is_err());
     }
 }

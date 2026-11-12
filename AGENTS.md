@@ -26,6 +26,8 @@
 | `plugin/panel.luau` | `ui.*`-дерево | P0 ✅ (S3) |
 | `daemon/src/api.rs` | HTTP-клиент API + `stream` | M1 ✅ (кроме потока) |
 | `daemon/src/mpris.rs` | внешний MPRIS через `playerctl` | M1 ✅ (временный) |
+| `daemon/src/httpd.rs` | + `/v1/search`, `payload` в `/v1/cmd` | M1 ✅ |
+| `plugin/panel.luau` | поиск, результаты, очередь, транспорт | M1 ✅ |
 
 ## Ограничения окружения агента
 

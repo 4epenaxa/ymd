@@ -60,3 +60,24 @@ GET https://<host><path> → 401
   контракт `/v1/state` и плагин не меняются.
 
 Это даёт работающий бар уже сейчас и не блокирует M2.
+
+
+## Панель: ui.input и песочница (проверено 2026-11-12)
+
+| Проверка | Результат |
+|---|---|
+| `_G["fn"] = function() end` | **ошибка**: `attempt to modify a readonly table` — `_G` только для чтения |
+| объявление `function name()` на верхнем уровне | работает, `ui.button{onClick="name"}` находит |
+| `ui.input{ text = ... }` | `[ui-tree] 'input' has no prop 'text', ignored` |
+| `ui.input{ value = ..., placeholder = ..., onSubmit = "fn", submitOnEnter = true, multiline = false }` | без предупреждений — пропсы приняты |
+| hot reload панели | работает: file-watcher перезагружает `panel.luau` |
+
+Правило: обработчики для `onClick`/`onSubmit` — только явные глобальные функции,
+никаких динамических имён через `_G`.
+
+## Контракт состояния: camelCase
+
+Rust сериализовал `position_ms`, а плагин читал `positionMs` — прогресс в баре и
+панели не работал. Исправлено `#[serde(rename_all = "camelCase")]` на `State`,
+`Track`, `Queue`, `QueueItem`, `EnvState`, `UiState`. Тест
+`state_serializes_camel_case` фиксирует контракт.
