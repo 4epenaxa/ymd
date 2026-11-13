@@ -1,11 +1,14 @@
 -- panel.luau — панель плеера: «сейчас играет», транспорт, поиск, очередь.
 --
--- Принципы: без анимаций, цвета только из палитры (роли), списки ограничены
--- 4 элементами (панель не скроллится в P0-варианте).
+-- Принципы: без анимаций, цвета только из ролей палитры, иконки — tabler
+-- (ui.button.glyph), списки живут в ui.scroll и не вылезают за панель.
 
 local ymd = require("./lib/ymd.luau")
 
-local MAX_ROWS = 4
+-- бюджет символов для одной строки списка: ширина панели ~396 px,
+-- моноширинный шрифт 12 px ≈ 7 px/символ
+local TITLE_BUDGET = 30
+local ARTIST_BUDGET = 18
 
 local s = {
   rev = -1,
@@ -14,6 +17,7 @@ local s = {
   artist = "",
   position = 0,
   duration = 0,
+  liked = false,
   query = "",
   cover_url = "",
   cover_path = "",
@@ -29,8 +33,9 @@ local s = {
 
 -- ui.image принимает ТОЛЬКО локальный путь (проп `path`), поэтому обложку
 -- скачиваем в pluginDataDir и рисуем файлом.
--- forward declaration: ensure_cover зовёт render, render зовёт ensure_cover
+-- forward declarations: ensure_cover зовёт render; ряды списков зовут play_*
 local render
+local play_result, play_queue
 
 local function cover_file()
   return noctalia.pluginDataDir() .. "/cover_" .. tostring(s.track_id) .. ".img"
@@ -54,9 +59,9 @@ end
 
 local function cover_block()
   if s.cover_path == "" then
-    return ui.box({ width = 0, height = 0 })
+    return nil
   end
-  return ui.image({ path = s.cover_path, fit = "cover", width = 40, height = 40 })
+  return ui.image({ path = s.cover_path, fit = "cover", width = 44, height = 44 })
 end
 
 local function progress()
@@ -66,27 +71,30 @@ local function progress()
   return math.min(1, s.position / s.duration)
 end
 
-local function short(text, limit)
-  local value = tostring(text or "")
-  if #value > limit then
-    return value:sub(1, limit - 1) .. "…"
-  end
-  return value
+local function fmt_time(ms)
+  local value = math.max(0, math.floor((tonumber(ms) or 0) / 1000))
+  return string.format("%d:%02d", math.floor(value / 60), value % 60)
 end
 
-local function cached_mark(item)
-  return item.cached and "✓ " or ""
+local function short(text, limit)
+  local value = tostring(text or "")
+  local length = utf8.len(value)
+  if not length or length <= limit then
+    return value
+  end
+  -- режем по кодовым точкам, иначе кириллица ломается на середине байта
+  local cut = utf8.offset(value, limit) or (#value + 1)
+  return value:sub(1, cut - 1) .. "…"
 end
 
 local function track_line(item)
   local prefix = item.cached and "✓ " or ""
-  -- префикс съедает два символа из бюджета строки
-  local budget = item.cached and 44 or 46
+  local title = short(item.title, TITLE_BUDGET)
   local artist = (item.artists and item.artists[1]) or ""
   if artist ~= "" then
-    return prefix .. short(item.title, budget - 20) .. " · " .. short(artist, 18)
+    return prefix .. title .. " · " .. short(artist, ARTIST_BUDGET)
   end
-  return prefix .. short(item.title, budget)
+  return prefix .. title
 end
 
 local QUALITY_LABELS = {
@@ -101,102 +109,174 @@ local function quality_label()
   return QUALITY_LABELS[s.quality] or s.quality
 end
 
+-- Компактная иконка-кнопка: один набор (tabler), один размерный ряд.
+local function icon_button(glyph, tooltip, action, variant, selected)
+  return ui.button({
+    glyph = glyph,
+    tooltip = tooltip,
+    variant = variant or "ghost",
+    controlSize = "sm",
+    glyphSize = 16,
+    selected = selected,
+    onClick = action,
+  })
+end
+
 local function header()
-  return ui.row({ gap = 8, align = "center" }, {
-    ui.label({
-      text = s.status == "playing" and "▶" or "❚❚",
-      color = "primary",
-      fontSize = 12,
-    }),
+  local children = {
     ui.label({
       text = short(s.title, 30),
       color = "on_surface",
       maxLines = 1,
-      fontSize = 14,
+      fontSize = 15,
+      fontWeight = "bold",
     }),
     ui.spacer({}),
-    ui.label({
-      text = s.status .. " · " .. quality_label(),
-      color = "on_surface_variant",
-      fontSize = 11,
+    ui.button({
+      text = quality_label(),
+      variant = "ghost",
+      controlSize = "sm",
+      tooltip = "Качество звука",
+      onClick = "ym_quality",
     }),
-  })
+    icon_button("x", "Закрыть", "hidePanel"),
+  }
+  return ui.row({ gap = 6, align = "center" }, children)
 end
 
-local function artist_row()
-  local line = s.artist
-  if line == "" then
-    line = "—"
-  end
-  return ui.label({
-    text = short(line, 46),
+-- Обложка + артист: один блок, чтобы текст не «прыгал» при появлении картинки.
+local function track_block()
+  local cover = cover_block()
+  local artist = ui.label({
+    text = short(s.artist ~= "" and s.artist or "—", 46),
     color = "on_surface_variant",
     maxLines = 1,
     fontSize = 12,
   })
+
+  if cover then
+    return ui.row({ gap = 10, align = "center" }, { cover, artist })
+  end
+  return artist
 end
 
-local function transport()
-  return ui.row({ gap = 6 }, {
-    ui.button({ text = "◀", variant = "secondary", onClick = "prev" }),
-    ui.button({
-      text = s.status == "playing" and "❚❚" or "▶",
-      variant = "primary",
-      onClick = "toggle",
+local function progress_block()
+  if s.duration <= 0 then
+    return ui.progress({ progress = 0, height = 2, fill = "primary", track = "outline/0.4" })
+  end
+  return ui.column({ gap = 2 }, {
+    ui.progress({
+      progress = progress(),
+      height = 2,
+      fill = "primary",
+      track = "outline/0.4",
     }),
-    ui.button({ text = "▶❚", variant = "secondary", onClick = "next" }),
-    ui.button({ text = "♥", variant = "ghost", onClick = "like" }),
-    ui.button({ text = "Волна", variant = "ghost", onClick = "ym_wave" }),
-    ui.spacer({}),
-    ui.button({ text = "×", variant = "ghost", onClick = "hidePanel" }),
+    ui.row({ justify = "space_between" }, {
+      ui.label({ text = fmt_time(s.position), color = "on_surface_variant", fontSize = 10 }),
+      ui.label({ text = fmt_time(s.duration), color = "on_surface_variant", fontSize = 10 }),
+    }),
   })
 end
 
-local function results_block()
-  local rows = {}
-  for index, item in ipairs(s.results) do
-    if index > MAX_ROWS then
-      break
-    end
-    rows[#rows + 1] = ui.button({
-      text = track_line(item),
-      variant = "ghost",
-      onClick = "ym_play_" .. index,
-    })
-  end
+local function transport()
+  local repeat_glyph = ({
+    off = "repeat-off",
+    all = "repeat",
+    one = "repeat-once",
+  })[s.loop_mode] or "repeat"
+  local repeat_tip = ({
+    off = "Повтор выключен",
+    all = "Повтор: вся очередь",
+    one = "Повтор: один трек",
+  })[s.loop_mode] or "Повтор"
 
-  if #rows == 0 then
-    rows[1] = ui.label({
-      text = s.query == "" and "Введите запрос в поле выше" or "Ничего не найдено",
+  return ui.row({ gap = 2, align = "center" }, {
+    icon_button("player-track-prev", "Предыдущий трек", "prev"),
+    icon_button(
+      s.status == "playing" and "player-pause" or "player-play",
+      s.status == "playing" and "Пауза" or "Играть",
+      "toggle",
+      "primary"
+    ),
+    icon_button("player-track-next", "Следующий трек", "next"),
+    ui.spacer({}),
+    icon_button(
+      s.liked and "heart-filled" or "heart",
+      s.liked and "Убрать из любимых" or "В любимые",
+      "like",
+      "ghost",
+      s.liked
+    ),
+    icon_button(repeat_glyph, repeat_tip, "ym_repeat", "ghost", s.loop_mode ~= "off"),
+    icon_button(
+      "arrows-shuffle",
+      s.shuffle and "Перемешивание включено" or "Перемешивание выключено",
+      "ym_shuffle",
+      "ghost",
+      s.shuffle
+    ),
+    ui.button({
+      text = "Волна",
+      glyph = "wave-sine",
+      variant = "ghost",
+      controlSize = "sm",
+      tooltip = "Моя волна",
+      onClick = "ym_wave",
+    }),
+  })
+end
+
+local function section_title(text)
+  return ui.label({ text = text, color = "on_surface_variant", fontSize = 11 })
+end
+
+local function results_block()
+  if s.query == "" then
+    return nil
+  end
+  if #s.results == 0 then
+    return ui.label({
+      text = "Ничего не найдено",
       color = "on_surface_variant",
       fontSize = 12,
     })
   end
 
+  local rows = { section_title("Найдено · " .. #s.results) }
+  for index, item in ipairs(s.results) do
+    rows[#rows + 1] = ui.button({
+      text = track_line(item),
+      variant = "ghost",
+      controlSize = "sm",
+      contentAlign = "start",
+      onClick = function()
+        play_result(index)
+      end,
+    })
+  end
   return ui.column({ gap = 2 }, rows)
 end
 
 local function queue_block()
-  local rows = {}
+  if #s.queue == 0 then
+    return ui.column({ gap = 2 }, {
+      section_title("Очередь"),
+      ui.label({ text = "Очередь пуста", color = "on_surface_variant", fontSize = 12 }),
+    })
+  end
+
+  local rows = { section_title("Очередь · " .. #s.queue) }
   for index, item in ipairs(s.queue) do
-    if index > MAX_ROWS then
-      break
-    end
     rows[#rows + 1] = ui.button({
-      text = tostring(index) .. ". " .. track_line(item),
+      text = string.format("%2d. ", index) .. track_line(item),
       variant = "ghost",
-      onClick = "ym_queue_" .. index,
+      controlSize = "sm",
+      contentAlign = "start",
+      onClick = function()
+        play_queue(index)
+      end,
     })
   end
-
-  if #rows == 0 then
-    rows[1] = ui.label({
-      text = "Очередь пуста",
-      color = "on_surface_variant",
-      fontSize = 12,
-    })
-  end
-
   return ui.column({ gap = 2 }, rows)
 end
 
@@ -211,51 +291,38 @@ local function search_input()
 
   return ui.input({
     value = s.query,
-    placeholder = "Поиск",
+    placeholder = "Поиск: трек, артист, альбом",
     onSubmit = "ym_submit",
     submitOnEnter = true,
     multiline = false,
-  })
-end
-
-local function mode_row()
-  local repeat_text = ({ off = "Повтор: выкл", all = "Повтор: все", one = "Повтор: один" })[s.loop_mode]
-    or "Повтор: все"
-  local shuffle_text = s.shuffle and "Перемешать: вкл" or "Перемешать: выкл"
-
-  return ui.row({ gap = 6 }, {
-    ui.button({ text = repeat_text, onClick = "ym_repeat", width = 130 }),
-    ui.button({ text = shuffle_text, onClick = "ym_shuffle", width = 120 }),
-    ui.button({
-      text = "Качество: " .. quality_label(),
-      onClick = "ym_quality",
-      width = 150,
-    }),
+    fontSize = 13,
   })
 end
 
 render = function()
   ensure_cover()
-  panel.render(ui.column({ gap = 8, padding = 12, fill = "surface", radius = 10 }, {
+
+  local body = {
     header(),
-    cover_block(),
-    artist_row(),
-    ui.progress({
-      progress = progress(),
-      height = 2,
-      fill = "primary",
-      track = "surface_variant",
-    }),
+    track_block(),
+    progress_block(),
     transport(),
-    mode_row(),
-    ui.separator({}),
     search_input(),
-    results_block(),
-    ui.separator({}),
-    ui.label({ text = "Очередь", color = "on_surface_variant", fontSize = 11 }),
-    queue_block(),
-    ui.label({ text = s.hint, color = "on_surface_variant", fontSize = 10 }),
-  }))
+  }
+
+  local found = results_block()
+  local lists = {}
+  if found then
+    lists[#lists + 1] = found
+  end
+  lists[#lists + 1] = queue_block()
+  body[#body + 1] = ui.scroll({ flexGrow = 1, gap = 10 }, lists)
+
+  if s.hint ~= "" then
+    body[#body + 1] = ui.label({ text = s.hint, color = "on_surface_variant", fontSize = 10 })
+  end
+
+  panel.render(ui.column({ flexGrow = 1, gap = 6, padding = 10, fill = "surface", radius = 10 }, body))
 end
 
 local function apply(state)
@@ -274,6 +341,7 @@ local function apply(state)
     s.title = state.track.title or "—"
     s.duration = state.track.durationMs or 0
     s.artist = table.concat(state.track.artists or {}, ", ")
+    s.liked = state.track.liked == true
     local new_id = tostring(state.track.id or "")
     if new_id ~= s.track_id then
       s.track_id = new_id
@@ -302,9 +370,8 @@ local function refresh()
   end)
 end
 
--- ui.button.onClick принимает только имя глобальной функции, поэтому обработчики
--- объявлены явно. MAX_ROWS совпадает с их количеством.
-local function play_result(index)
+-- forward declarations: обработчики ссылаются друг на друга
+play_result = function(index)
   local item = s.results[index]
   if not item then
     return
@@ -312,19 +379,9 @@ local function play_result(index)
   ymd.cmd_payload("play_track", item, function() refresh() end)
 end
 
-local function play_queue(index)
+play_queue = function(index)
   ymd.cmd_payload("queue_play", { index = index - 1 }, function() refresh() end)
 end
-
-function ym_play_1() play_result(1) end
-function ym_play_2() play_result(2) end
-function ym_play_3() play_result(3) end
-function ym_play_4() play_result(4) end
-
-function ym_queue_1() play_queue(1) end
-function ym_queue_2() play_queue(2) end
-function ym_queue_3() play_queue(3) end
-function ym_queue_4() play_queue(4) end
 
 function ym_repeat()
   local next_mode = ({ off = "all", all = "one", one = "off" })[s.loop_mode] or "all"
@@ -345,13 +402,15 @@ function ym_submit(value)
     render()
     return
   end
+  s.hint = "поиск…"
+  render()
   ymd.search(s.query, function(data, err)
     if err then
       s.hint = "поиск: " .. tostring(err)
       s.results = {}
     else
       s.results = (data and data.tracks) or {}
-      s.hint = string.format("найдено: %d", #s.results)
+      s.hint = ""
     end
     render()
   end)
@@ -384,7 +443,7 @@ function like()
 end
 
 function hidePanel()
-  noctalia.togglePanel("pbolkhovitin/yandex-music:panel")
+  panel.close()
 end
 
 local QUALITY_ORDER = { "lossless", "hq", "nq", "lq" }
