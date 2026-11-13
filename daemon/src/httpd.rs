@@ -75,6 +75,7 @@ pub async fn serve(
         .route("/v1/search", get(search))
         .route("/v1/playlists", get(playlists))
         .route("/v1/playlist", get(playlist))
+        .route("/v1/artist", get(artist))
         .route("/v1/album", get(album))
         .route("/v1/favorites", get(favorites))
         .route("/v1/home", get(home))
@@ -860,6 +861,44 @@ fn home_item(kind: &str, object: &serde_json::Value) -> Option<serde_json::Value
     }
 }
 
+#[derive(Deserialize)]
+struct BrowseParams {
+    id: String,
+    #[serde(default)]
+    page: Option<u32>,
+}
+
+/// `GET /v1/artist?id=...` — карточка исполнителя и его треки.
+async fn artist(
+    AxumState(shared): AxumState<Shared>,
+    headers: HeaderMap,
+    Query(params): Query<BrowseParams>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    if !authorized(&headers, &shared.key) {
+        return Err((StatusCode::UNAUTHORIZED, "bad session".to_string()));
+    }
+
+    let client = crate::api::Client::from_store()
+        .map_err(|err| (StatusCode::SERVICE_UNAVAILABLE, err.to_string()))?;
+    let info = client
+        .artist(&params.id)
+        .await
+        .map_err(|err| (StatusCode::BAD_GATEWAY, err.to_string()))?;
+    let tracks = client
+        .artist_tracks(&params.id, params.page.unwrap_or(0))
+        .await
+        .map_err(|err| (StatusCode::BAD_GATEWAY, err.to_string()))?;
+
+    let meta = simplify_artist(&info, &params.id);
+    let tracks: Vec<serde_json::Value> = tracks
+        .get("tracks")
+        .and_then(serde_json::Value::as_array)
+        .map(|items| items.iter().filter_map(simplify_track).collect())
+        .unwrap_or_default();
+
+    Ok(Json(serde_json::json!({ "artist": meta, "tracks": tracks })))
+}
+
 /// `GET /v1/cache` — содержимое офлайн-кэша и лимит.
 async fn cache_info(
     AxumState(shared): AxumState<Shared>,
@@ -946,6 +985,14 @@ fn simplify_track(item: &serde_json::Value) -> Option<serde_json::Value> {
                 .map(|n| n.to_string())
                 .or_else(|| v.as_str().map(str::to_string))
         });
+    let artist_id = item
+        .get("artistId")
+        .or_else(|| item.pointer("/artists/0/id"))
+        .and_then(|v| {
+            v.as_u64()
+                .map(|n| n.to_string())
+                .or_else(|| v.as_str().map(str::to_string))
+        });
     let liked = item
         .get("liked")
         .and_then(serde_json::Value::as_bool)
@@ -957,12 +1004,36 @@ fn simplify_track(item: &serde_json::Value) -> Option<serde_json::Value> {
         "artists": artists,
         "album": album,
         "albumId": album_id,
+        "artistId": artist_id,
         "durationMs": duration_ms,
         "liked": liked,
         "cover": cover,
         "cached": crate::cache::is_cached(&id),
         "playlistIndex": playlist_index,
     }))
+}
+
+fn simplify_artist(info: &serde_json::Value, fallback_id: &str) -> serde_json::Value {
+    let artist = info.get("artist").unwrap_or(info);
+    let id = artist
+        .get("id")
+        .and_then(|v| {
+            v.as_u64()
+                .map(|n| n.to_string())
+                .or_else(|| v.as_str().map(str::to_string))
+        })
+        .unwrap_or_else(|| fallback_id.to_string());
+    let name = artist
+        .get("name")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or("Исполнитель")
+        .to_string();
+    let cover = artist
+        .pointer("/cover/uri")
+        .or_else(|| artist.pointer("/covers/0/uri"))
+        .and_then(serde_json::Value::as_str)
+        .and_then(crate::state::cover_url);
+    serde_json::json!({ "id": id, "name": name, "cover": cover })
 }
 
 /// Метаданные плейлиста для списка и шапки. Обложка-мозаика берётся из

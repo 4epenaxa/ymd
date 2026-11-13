@@ -94,6 +94,26 @@ QString YmdClient::playlistTitle() const
     return m_playlistTitle;
 }
 
+QVariantMap YmdClient::artistInfo() const
+{
+    return m_artistInfo;
+}
+
+QVariantList YmdClient::artistTracks() const
+{
+    return m_artistTracks;
+}
+
+QVariantMap YmdClient::albumInfo() const
+{
+    return m_albumInfo;
+}
+
+QVariantList YmdClient::albumTracks() const
+{
+    return m_albumTracks;
+}
+
 QVariantList YmdClient::cacheItems() const
 {
     return m_cacheItems;
@@ -312,6 +332,38 @@ void YmdClient::loadPlaylist(qint64 uid, qint64 kind)
             object.value(QStringLiteral("tracks")).toArray().toVariantList();
         emit playlistTracksChanged();
     });
+}
+
+void YmdClient::loadArtist(const QString &id)
+{
+    const QString path =
+        QStringLiteral("/v1/artist?id=%1")
+            .arg(QString::fromUtf8(QUrl::toPercentEncoding(id)));
+    getJson(path, [this](const QJsonObject &object) {
+        m_artistInfo = object.value(QStringLiteral("artist")).toObject().toVariantMap();
+        m_artistTracks =
+            object.value(QStringLiteral("tracks")).toArray().toVariantList();
+        emit artistChanged();
+    });
+}
+
+void YmdClient::loadAlbum(const QString &id)
+{
+    const QString path =
+        QStringLiteral("/v1/album?id=%1")
+            .arg(QString::fromUtf8(QUrl::toPercentEncoding(id)));
+    getJson(path, [this](const QJsonObject &object) {
+        m_albumInfo = object.value(QStringLiteral("album")).toObject().toVariantMap();
+        m_albumTracks =
+            object.value(QStringLiteral("tracks")).toArray().toVariantList();
+        emit albumChanged();
+    });
+}
+
+void YmdClient::startStation(const QString &station)
+{
+    sendCmd(QStringLiteral("station_start"),
+            {{QStringLiteral("station"), station}}, {});
 }
 
 void YmdClient::loadCache()

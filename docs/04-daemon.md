@@ -133,6 +133,8 @@ Previous/Seek/SetPosition/Set(Volume)`, сигнал `Seeked`.
 | GET | `/v1/search?q=…&page=…` | `{query, tracks:[…]}` |
 | GET | `/v1/playlists` | `{playlists:[…]}` — плейлисты текущего пользователя |
 | GET | `/v1/playlist?uid=…&kind=…` | `{playlist, tracks:[…]}` |
+| GET | `/v1/artist?id=…` | `{artist, tracks:[…]}` — карточка и треки исполнителя |
+| GET | `/v1/album?id=…` | `{album, tracks:[…]}` — альбом и все треки |
 | GET | `/v1/cache` | `{items, totalBytes, limitBytes, dir}` |
 | POST | `/v1/cmd` | `{op, payload}` → `{ok, rev}` |
 | GET | `/v1/events` | SSE-поток состояний (для отладки) |
@@ -192,6 +194,7 @@ Previous/Seek/SetPosition/Set(Volume)`, сигнал `Seeked`.
 | `enqueue` | объект трека |
 | `queue_play`, `queue_remove` | `{"index":0}` |
 | `queue_move` | `{"from":2,"to":0}` — переставить трек |
+| `station_start` | `{"station":"track:123"}` или `{"station":"artist:456"}` — станция по треку/исполнителю |
 | `queue_clear` | — |
 | `queue_set` | `{"tracks":[…],"index":0,"play":true}` — заменить очередь |
 | `download_track` | `{"track":{…}}` — поставить трек в очередь |

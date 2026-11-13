@@ -323,6 +323,40 @@ impl Client {
         Ok(unwrap_result(value))
     }
 
+    /// Треки исполнителя для встроенного перехода.
+    pub async fn artist_tracks(&self, id: &str, page: u32) -> Result<Value, ApiError> {
+        let value = self
+            .get(
+                &format!("/artists/{id}/tracks"),
+                &[
+                    ("page", page.to_string()),
+                    ("page-size", "50".to_string()),
+                ],
+            )
+            .await?;
+        Ok(unwrap_result(value))
+    }
+
+    /// Станция по треку/исполнителю: `track:<id>` или `artist:<id>`.
+    pub async fn station_tracks(&self, station: &str) -> Result<WaveBatch, ApiError> {
+        let value = self
+            .get(&format!("/rotor/station/{station}/tracks"), &[])
+            .await?;
+        let result = value.get("result").unwrap_or(&value);
+        Ok(WaveBatch {
+            session_id: result
+                .get("radioSessionId")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_string(),
+            batch_id: result
+                .get("batchId")
+                .and_then(Value::as_str)
+                .map(str::to_string),
+            tracks: collect_sequence(result),
+        })
+    }
+
     pub async fn playlists(&self, uid: u64) -> Result<Value, ApiError> {
         let value = self
             .get(&format!("/users/{uid}/playlists/list"), &[])

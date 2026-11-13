@@ -27,6 +27,9 @@ pub struct Track {
     /// id альбома — нужен для добавления трека в плейлист и лайков.
     #[serde(default)]
     pub album_id: Option<String>,
+    /// id первого исполнителя — для перехода и станции по артисту.
+    #[serde(default)]
+    pub artist_id: Option<String>,
     #[serde(default)]
     pub duration_ms: u64,
     #[serde(default)]
@@ -53,6 +56,8 @@ pub struct QueueItem {
     #[serde(default)]
     pub album_id: Option<String>,
     #[serde(default)]
+    pub artist_id: Option<String>,
+    #[serde(default)]
     pub duration_ms: u64,
     #[serde(default)]
     pub liked: bool,
@@ -69,6 +74,7 @@ impl From<&Track> for QueueItem {
             title: track.title.clone(),
             artists: track.artists.clone(),
             album_id: track.album_id.clone(),
+            artist_id: track.artist_id.clone(),
             duration_ms: track.duration_ms,
             liked: track.liked,
             cover: track.cover.clone(),
@@ -735,6 +741,13 @@ impl AppState {
     pub async fn command_async(&self, op: &str, payload: Option<&Value>) -> Result<u64, String> {
         match op {
             "wave_start" => return self.wave_start().await,
+            "station_start" => {
+                let station = payload
+                    .and_then(|v| v.get("station"))
+                    .and_then(Value::as_str)
+                    .ok_or_else(|| "station_start: нужна station".to_string())?;
+                return self.station_start(station).await;
+            }
             "wave_more" => return self.wave_more().await,
             "wave_feedback" => return self.wave_feedback(payload).await,
             "download_track" => return self.download_track(payload).await,
@@ -1310,6 +1323,48 @@ impl AppState {
         Box::pin(self.command_async("queue_play", Some(&serde_json::json!({ "index": 0 })))).await
     }
 
+    /// Станция по треку или исполнителю (`track:<id>` / `artist:<id>`).
+    pub async fn station_start(&self, station: &str) -> Result<u64, String> {
+        let client = crate::api::Client::from_store().map_err(|err| err.to_string())?;
+        let batch = client
+            .station_tracks(station)
+            .await
+            .map_err(|err| err.to_string())?;
+
+        if batch.session_id.is_empty() || batch.tracks.is_empty() {
+            return Err("станция: пустой ответ".to_string());
+        }
+
+        let items: Vec<QueueItem> = batch
+            .tracks
+            .iter()
+            .filter_map(|value| track_from_value(value).ok())
+            .map(|track| QueueItem::from(&track))
+            .collect();
+
+        if items.is_empty() {
+            return Err("станция: не удалось разобрать треки".to_string());
+        }
+
+        {
+            let mut st = self.inner.write().map_err(|err| err.to_string())?;
+            st.queue.items = items;
+            st.queue.sync_length();
+            st.queue.index = 0;
+            st.queue.shuffle = false;
+            st.wave = Some(WaveInfo {
+                session_id: batch.session_id.clone(),
+                batch_id: batch.batch_id.clone(),
+                active: true,
+                station: Some(station.to_string()),
+            });
+            st.rev += 1;
+            let _ = self.tx.send(serde_json::to_string(&*st).unwrap_or_default());
+        }
+
+        Box::pin(self.command_async("queue_play", Some(&serde_json::json!({ "index": 0 })))).await
+    }
+
     /// Догрузка следующей партии треков (вызывается тикером и вручную).
     pub async fn wave_more(&self) -> Result<u64, String> {
         if self.wave_pending.swap(true, Ordering::Relaxed) {
@@ -1486,6 +1541,7 @@ impl AppState {
                 artists: snapshot.artists,
                 album: snapshot.album,
                 album_id: None,
+                artist_id: None,
                 duration_ms: snapshot.duration_ms,
                 liked: false,
                 cover: None,
@@ -1690,6 +1746,7 @@ fn track_from_queue_item(item: &QueueItem) -> Track {
         artists: item.artists.clone(),
         album: None,
         album_id: item.album_id.clone(),
+        artist_id: item.artist_id.clone(),
         duration_ms: item.duration_ms,
         liked: item.liked,
         cover: item.cover.clone(),
@@ -1766,6 +1823,10 @@ fn track_from_payload(payload: Option<&Value>) -> Result<Track, String> {
         .or_else(|| field("album_id"))
         .or_else(|| value.pointer("/albums/0/id"))
         .and_then(value_to_id);
+    let artist_id = field("artistId")
+        .or_else(|| field("artist_id"))
+        .or_else(|| value.pointer("/artists/0/id"))
+        .and_then(value_to_id);
     let liked = field("liked").and_then(Value::as_bool).unwrap_or(false);
     let cover = field("cover")
         .and_then(Value::as_str)
@@ -1789,6 +1850,7 @@ fn track_from_payload(payload: Option<&Value>) -> Result<Track, String> {
         artists,
         album,
         album_id,
+        artist_id,
         duration_ms,
         liked,
         cover,
@@ -1860,6 +1922,7 @@ mod tests {
             artists: vec!["A".into()],
             album: None,
             album_id: None,
+            artist_id: None,
             duration_ms: 1000,
             liked: false,
             cover: None,

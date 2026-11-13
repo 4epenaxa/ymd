@@ -25,6 +25,11 @@ Controls.ItemDelegate {
     signal copyLinkRequested()
     signal removeFromPlaylistRequested()
     signal removeFromQueueRequested()
+    signal artistRequested()
+    signal albumRequested()
+    signal stationTrackRequested()
+    signal stationArtistRequested()
+    signal infoRequested()
     signal moveRequested(int from, int to)
 
     Layout.fillWidth: true
@@ -78,7 +83,9 @@ Controls.ItemDelegate {
             text: "⋮"
             implicitWidth: Kirigami.Units.iconSizes.smallMedium
             implicitHeight: Kirigami.Units.iconSizes.smallMedium
-            onClicked: menu.popup()
+            onClicked: menu.popup(row,
+                                  Math.max(0, row.width - (menu.implicitWidth > 0 ? menu.implicitWidth : 220)),
+                                  row.height)
             Controls.ToolTip.text: "Действия"
             Controls.ToolTip.visible: hovered
         }
@@ -86,7 +93,13 @@ Controls.ItemDelegate {
 
     TapHandler {
         acceptedButtons: Qt.RightButton
-        onTapped: menu.popup()
+        onTapped: function(point) {
+            var menuWidth = menu.implicitWidth > 0 ? menu.implicitWidth : 220;
+            menu.popup(row,
+                       Math.max(0, Math.min(point.position.x,
+                                            row.width - menuWidth)),
+                       Math.max(0, point.position.y))
+        }
     }
 
     DropArea {
@@ -110,6 +123,40 @@ Controls.ItemDelegate {
             text: "В очередь"
             visible: row.showEnqueue
             onTriggered: row.enqueueRequested()
+        }
+
+        Controls.MenuSeparator {}
+
+        Controls.MenuItem {
+            text: "Перейти к исполнителю"
+            enabled: row.item && row.item.artistId !== undefined
+            onTriggered: row.artistRequested()
+        }
+
+        Controls.MenuItem {
+            text: "Перейти к альбому"
+            enabled: row.item && row.item.albumId !== undefined
+            onTriggered: row.albumRequested()
+        }
+
+        Controls.MenuItem {
+            text: "Станция по треку"
+            enabled: row.item && row.item.id !== undefined
+            onTriggered: row.stationTrackRequested()
+        }
+
+        Controls.MenuItem {
+            text: "Станция по исполнителю"
+            enabled: row.item && row.item.artistId !== undefined
+            onTriggered: row.stationArtistRequested()
+        }
+
+        Controls.MenuSeparator {}
+
+        Controls.MenuItem {
+            text: "Информация о треке"
+            enabled: row.item && row.item.id !== undefined
+            onTriggered: row.infoRequested()
         }
 
         Controls.MenuItem {
