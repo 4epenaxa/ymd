@@ -114,6 +114,7 @@
 | GET | `/v1/playlists` | плейлисты пользователя, `{playlists: [...]}` |
 | GET | `/v1/playlist?uid=&kind=` | плейлист и треки, `{playlist, tracks: [...]}` |
 | GET | `/v1/album?id=` | альбом и треки (volumes сплющены), `{album, tracks}` |
+| GET | `/v1/artist?id=&page=` | артист и его треки, `{artist, tracks}` |
 | GET | `/v1/favorites` | «Мне нравится» (`kind = 3`): `{playlist, tracks}` |
 | GET | `/v1/home` | блоки главной: `{blocks: [{id, title, type, items}]}` |
 | GET | `/v1/discovery/metatags` | группы подборок: `{groups: [{id, title, tags: [{tag, title, children}]}]}` |
