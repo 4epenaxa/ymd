@@ -20,7 +20,7 @@ int main(int argc, char *argv[])
     QApplication::setApplicationDisplayName(QStringLiteral("Yandex Music"));
     QApplication::setOrganizationName(QStringLiteral("pbolkhovitin"));
     QApplication::setDesktopFileName(QStringLiteral("io.github.pbolkhovitin.ymdqt"));
-    QApplication::setWindowIcon(QIcon::fromTheme(QStringLiteral("audio-x-generic")));
+    QApplication::setWindowIcon(QIcon::fromTheme(QStringLiteral("ymd-qt"), QIcon::fromTheme(QStringLiteral("audio-x-generic"))));
     QApplication::setQuitOnLastWindowClosed(false);
 
     YmdClient client;

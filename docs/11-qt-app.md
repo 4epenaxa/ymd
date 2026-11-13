@@ -87,6 +87,11 @@ bash packaging/build-qt-deb.sh --arch amd64   # внутри запускает�
 станция запускается командой `station_start` (`track:<id>` или `artist:<id>`)
 и заменяет очередь партией радио.
 
+Иконка приложения — `app/icons/ymd-qt.svg`: тёмный круг с белой «Я» и
+play-треугольником. Она ставится в `hicolor/scalable/apps`, используется в
+окне и трее (`QIcon::fromTheme("ymd-qt")`), а `ymd-qt.desktop` ссылается на
+неё через `Icon=ymd-qt`.
+
 ## Поведение
 
 - ЛКМ по иконке в трее — показать/скрыть окно.

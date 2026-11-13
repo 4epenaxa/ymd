@@ -43,6 +43,7 @@ target_link_libraries(ymd-qt PRIVATE
 
 install(TARGETS ymd-qt RUNTIME DESTINATION bin)
 install(FILES ymd-qt.desktop DESTINATION share/applications)
+install(FILES icons/ymd-qt.svg DESTINATION share/icons/hicolor/scalable/apps)
 
 enable_testing()
 
