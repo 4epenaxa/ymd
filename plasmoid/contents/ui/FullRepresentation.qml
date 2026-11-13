@@ -226,8 +226,15 @@ Item {
             onAccepted: applet.search(text)
         }
 
+        PlasmaComponents3.Label {
+            Layout.fillWidth: true
+            text: "Найдено · " + applet.searchResults.length
+            font.bold: true
+            visible: applet.searchResults.length > 0
+        }
+
         Repeater {
-            model: applet.searchResults.slice(0, 4)
+            model: applet.searchResults
             delegate: TrackRow {
                 item: modelData
                 onClicked: applet.cmd("play_track", modelData)
