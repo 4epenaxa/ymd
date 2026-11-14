@@ -111,8 +111,9 @@ noctalia msg plugin 'pbolkhovitin/yandex-music:panel' all refresh
 
 ## Глиф бара по состоянию (2026-11-14)
 
-Пользователь выбрал динамический вариант: `player-play` — играет,
-`player-pause` — пауза, `music-off` — демон недоступен/пусто.
+Пользователь выбрал динамический вариант, семантика действия:
+`player-pause` — играет (клик поставит паузу), `player-play` — пауза,
+`music-off` — демон недоступен/пусто.
 Имена проверены по `/usr/share/noctalia/assets/fonts/tabler.json` (5958 иконок,
 все три есть; `music` тоже валиден).
 

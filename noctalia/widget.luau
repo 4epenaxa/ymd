@@ -5,9 +5,10 @@
 
 local ymd = require("./lib/ymd.luau")
 
+-- Семантика действия: на иконке то, что произойдёт по клику.
 local ICONS = {
-  playing = "player-play",
-  paused = "player-pause",
+  playing = "player-pause",
+  paused = "player-play",
   stopped = "player-play",
   off = "music-off",
 }
