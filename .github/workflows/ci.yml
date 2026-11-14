@@ -8,6 +8,12 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
+    inputs:
+      packages:
+        description: "Собрать .rpm (Fedora, контейнер) — проверка упаковки"
+        type: boolean
+        default: false
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -58,3 +64,27 @@ jobs:
           test -f "$archive"
           tar tzf "$archive" | grep -qx './plugin.toml'
           echo "готово: $archive ($(stat -c%s "$archive") байт)"
+
+  rpm:
+    name: rpm (Fedora, вручную)
+    if: github.event_name == 'workflow_dispatch' && inputs.packages
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Собрать .rpm демона, плазмоида и ymd-qt
+        run: bash packaging/build-rpm.sh --arch amd64
+      - name: Проверить пакеты
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq rpm
+          ls -lh dist/*.rpm
+          for pkg in dist/*.rpm; do
+            rpm -qp --qf '%{NAME} %{VERSION}-%{RELEASE} %{ARCH}\n' "$pkg"
+            rpm -qlp "$pkg" | head -5
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rpm
+          path: dist/*.rpm
+          if-no-files-found: error
