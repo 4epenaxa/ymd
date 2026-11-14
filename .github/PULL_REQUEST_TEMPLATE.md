@@ -4,13 +4,15 @@
 
 ## Клиент
 
-<!-- Отметьте один: CI client-scope не пропускает PR, который правит
+<!-- Отметьте клиенты, каталоги которых менялись: pr-policy сверяет
+     галочки с diff, client-scope не пропускает PR, который правит
      noctalia/ и (plasmoid|app)/ одновременно. -->
 
 - [ ] демон `daemon/`
 - [ ] Noctalia `noctalia/`
 - [ ] Plasma `plasmoid/`
 - [ ] `ymd-qt` `app/`
+- [ ] macOS `macos/`
 - [ ] документация / пакеты / скрипты
 
 ## Проверки

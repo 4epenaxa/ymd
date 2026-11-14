@@ -259,7 +259,8 @@ ymd logs -f         # следить
 
 Подпись коммитов, ветки, правило «один PR — один клиент» и проверки CI —
 `CONTRIBUTING.md`. Коротко: свой `user.email` в git, ветка от свежего `main`,
-squash-merge, `scripts/docs-check.sh` перед PR.
+заголовок PR в стиле Conventional Commits, squash-merge,
+`scripts/docs-check.sh` и `scripts/pr-check.sh` перед PR.
 
 ## Связанные материалы
 

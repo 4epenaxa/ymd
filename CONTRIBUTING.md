@@ -1,7 +1,7 @@
 # Участие в разработке
 
 Репозиторий публичный, ветка `main` защищена: пуш напрямую закрыт, нужен PR
-с зелёными проверками `client-scope` и `commit-identity`.
+с зелёными проверками `client-scope`, `commit-identity` и `pr-policy`.
 
 ## Подпись коммитов
 
@@ -57,6 +57,11 @@ workflow; новый участник добавляет свой туда же 
 - Перед PR: `bash scripts/docs-check.sh` (сверяет доки с кодом, маршруты `/v1/*`,
   копии `format.js` и версии манифестов); для плагина —
   `noctalia plugins lint ./noctalia`; для демона — `cargo test`.
+- Оформление PR проверяет `pr-policy` (`scripts/pr-check.sh`): заголовок
+  в стиле Conventional Commits (squash-merge берёт его как сообщение коммита
+  в `main`), все разделы шаблона, соответствие галочек «Клиент» диффу и новый
+  пункт в `CHANGELOG.md` при правках кода. Локально:
+  `bash scripts/pr-check.sh --body /tmp/pr.md`.
 - Упаковка: `gh workflow run ci.yml --ref <ветка> -f packages=true` собирает
   `.rpm` без выпуска тега (job `rpm (Fedora, вручную)`).
 - `CHANGELOG.md` пополняется в том же PR: пункт в `[Unreleased]`. Версии
@@ -80,10 +85,14 @@ workflow; новый участник добавляет свой туда же 
 ## Настройки репозитория
 
 Включено: squash-only мерж, удаление ветки после мержа, обновление ветки
-из `main`, четыре workflow (CI, release, client-scope, commit-identity).
-Ветка `main` защищена: обязательны проверки `scope` и `author`, нужно
-одобрение ревью, force-push и удаление ветки запрещены. Администратор
-(`enforce_admins = false`) может пушить напрямую — так выпускаются релизы.
+из `main`, шесть workflow (CI, release, macos-release, client-scope,
+commit-identity, pr-policy). Ветка `main` защищена: обязательны проверки
+`scope` и `author`, нужно одобрение ревью, force-push и удаление ветки
+запрещены. Администратор (`enforce_admins = false`) может пушить напрямую —
+так выпускаются релизы.
+
+Чтобы `pr-policy` блокировал мерж, job `policy` добавляется в обязательные
+проверки ветки `main` (Settings → Branches).
 
 ## Релиз
 

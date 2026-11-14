@@ -1,0 +1,34 @@
+name: pr-policy
+
+# Оценка оформления PR: разделы шаблона, заголовок, галочки «Клиент»
+# и пункт в CHANGELOG. Содержательное ревью — по CODEOWNERS.
+#
+# Проверка читает сам PR, поэтому скрипт из PR технически может быть
+# изменён. Это помощь честному автору (и агенту), а не защита от
+# злого умысла: защита — обязательные проверки и ревью владельца.
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened, ready_for_review]
+
+concurrency:
+  group: pr-policy-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  policy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Проверить оформление PR
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: bash scripts/pr-check.sh
