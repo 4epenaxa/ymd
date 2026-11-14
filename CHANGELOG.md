@@ -25,6 +25,9 @@
 
 ### Исправлено
 
+- macOS: синтаксис `Button` в SwiftUI-клиенте (явный `label:`); добавлен
+  `macos/run-daemon.sh` для запуска с аудиоплагинами без конфликтов
+  GTK 3/GTK 4 и Python GI в Homebrew GStreamer.
 - Панель Noctalia: обложка не загружалась при открытии — `ensure_cover()`
   вызывался до `refresh()`, когда `cover_url` ещё пуст; теперь вызывается
   в `apply()` сразу после нового состояния.
