@@ -113,10 +113,18 @@ git tag -d v0.3.0 && git push origin :refs/tags/v0.3.0
 
 | Workflow | Когда | Что делает |
 |---|---|---|
-| `ci.yml` | push в `main`, PR | версии, `docs-check`, `cargo test` в Docker, архив плагина |
+| `ci.yml` | push в `main`, PR; вручную | версии, `docs-check`, `cargo test` в Docker, архив плагина; при ручном запуске — ещё `.rpm` |
 | `release.yml` | тег `v*` | версия = тег, тесты, `.deb`/`.rpm` + архив, GitHub Release |
 | `client-scope.yml` | PR | один PR — один клиент |
 | `commit-identity.yml` | PR | автор коммитов — участник проекта |
+
+Проверить упаковку, не выпуская тег:
+
+```bash
+gh workflow run ci.yml --ref main -f packages=true
+```
+
+Job `rpm (Fedora, вручную)` соберёт три пакета и выложит их артефактом.
 
 Ручная сборка arm64 (в CI только amd64):
 

@@ -55,6 +55,8 @@ CI проверяет авторов в PR (`.github/workflows/commit-identity.y
 - Перед PR: `bash scripts/docs-check.sh` (сверяет доки с кодом, маршруты `/v1/*`,
   копии `format.js` и версии манифестов); для плагина —
   `noctalia plugins lint ./noctalia`; для демона — `cargo test`.
+- Упаковка: `gh workflow run ci.yml --ref <ветка> -f packages=true` собирает
+  `.rpm` без выпуска тега (job `rpm (Fedora, вручную)`).
 - `CHANGELOG.md` пополняется в том же PR: пункт в `[Unreleased]`. Версии
   в манифестах не правятся руками — только `bash scripts/version.sh --bump`.
 - Ревью: `CODEOWNERS` запрашивает владельца каталога автоматически

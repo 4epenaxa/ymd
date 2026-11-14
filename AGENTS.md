@@ -46,7 +46,7 @@
 | `scripts/version.sh` | версии: `--check`, `--bump`, `--tag` | готов |
 | `packaging/` | Docker, `.deb`, `.rpm`, systemd unit | готов |
 | `scripts/` | сборка, установка, проверки | готов |
-| `.github/workflows/ci.yml` | версии, доки, тесты, архив плагина | готов |
+| `.github/workflows/ci.yml` | версии, доки, тесты, архив плагина; ручной прогон `.rpm` | готов |
 | `.github/workflows/release.yml` | тег `v*` → `.deb`/`.rpm` + GitHub Release | готов |
 
 ## Ограничения окружения агента
