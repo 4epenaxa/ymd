@@ -100,6 +100,7 @@ bash packaging/build-qt-deb.sh --arch amd64
 | Демон: API, поток, GStreamer, MPRIS | ✅ |
 | Офлайн-кэш: download, LRU, локальное воспроизведение | ✅ |
 | «Моя волна»: запуск, автодогрузка, feedback | ✅ |
+| Открытие: главная, жанры/настроения, подборки, плейлисты, избранное, радио | ✅ демон и Noctalia |
 | Плазмоид: компакт, попап, поиск, очередь, режимы | ✅ |
 | Отдельное приложение Qt/Kirigami: окно + трей | ✅ |
 | Пакеты `.deb` (amd64/arm64) | ✅ |
@@ -123,9 +124,13 @@ bash packaging/build-qt-deb.sh --arch amd64
 | `docs/07-roadmap.md` | этапы и следующий шаг |
 | `docs/08-risks.md` | риски и открытые вопросы |
 | `docs/09-p0-spikes.md` | проверки окружения и история спайков |
+| `docs/10-oauth-registration.md` | регистрация OAuth-приложения в Яндекс ID (историческая разведка) |
 | `docs/11-qt-app.md` | приложение `ymd-qt`: архитектура, сборка, трей, ограничения |
 | `docs/12-discovery-account.md` | главная, жанры/настроения, плейлисты, избранное, вход и настройки: анализ и план |
 | `notes/kde-port-findings.md` | факты порта: хост, QML, упаковка |
+| `notes/noctalia-ui-findings.md` | грабли Yoga/Luau в панели Noctalia |
+| `notes/m1-findings.md` … `m4-findings.md` | факты по этапам: поток, очередь, кэш, волна |
+| `notes/lyrics-findings.md` | подпись и формат текстов песен (разведка) |
 
 ## Требования
 

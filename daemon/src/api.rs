@@ -36,7 +36,7 @@ pub struct Client {
 }
 
 impl Client {
-    #[allow(dead_code)] // album/artist/playlists/likes — для M2
+    #[allow(dead_code)] // конструктор для CLI-команд и тестов
     pub fn new(token: String) -> Result<Self, ApiError> {
         let http = reqwest::Client::builder()
             .timeout(TIMEOUT)

@@ -152,6 +152,7 @@
   "downloads": [
     {"id": "…", "title": "…", "state": "downloading", "bytes": 1048576, "total": 3993120, "error": null}
   ],
+  "downloadPending": 12,
   "wave": {"sessionId": "…", "batchId": "…", "active": true},
   "quality": "lossless",
   "codec": "flac-mp4",
@@ -169,7 +170,8 @@
 `quality{value}`, `mode{value}`, `play_track{...track}`, `enqueue{...track}`,
 `queue_play{index}`, `queue_set{tracks,index,play}`, `queue_clear`,
 `queue_remove{index}`, `queue_move{from,to}`, `volume{value}`, `seek{positionMs}`,
-`repeat{value}`, `shuffle{value}`, `download_track{track}`, `cache_remove{id}`,
+`repeat{value}`, `shuffle{value}`, `station_start{station}`,
+`download_track{track}`, `download_tracks{tracks}`, `cache_remove{id}`,
 `cache_clear`, `cache_limit{limitMb}`, `playlist_create{title,visibility}`,
 `playlist_delete{kind}`, `playlist_add_tracks{kind,tracks}`,
 `playlist_remove_track{kind,index}`, `like_track{id,liked}`.
@@ -179,18 +181,18 @@
 прогресс — в `state.downloads`), операции с плейлистами (сначала получают
 актуальный `revision`).
 
-Ответ: `{ok, rev}`. Плазмоид после успешной команды сразу перечитывает
+Ответ: `{ok, rev}`. Клиенты после успешной команды сразу перечитывают
 `/v1/state`.
 
 ## Потоки
 
-**Play/pause.** Плазмоид → `POST /v1/cmd {op:"toggle"}` → демон меняет
+**Play/pause.** Любой клиент (плазмоид, `ymd-qt`, панель Noctalia) → `POST /v1/cmd {op:"toggle"}` → демон меняет
 GStreamer → MPRIS `PlaybackStatus` → следующий polling забирает `state`.
 
 **Смена трека.** GStreamer EOS → тикер зовёт `next` → `api::stream` резолвит URL
 (или локальный кэш) → `playbin3.set_uri` → MPRIS `Metadata` обновляется.
 
-**Поиск.** Плазмоид → `GET /v1/search?q=…` → демон подписывает запрос и ходит в
+**Поиск.** Клиент → `GET /v1/search?q=…` → демон подписывает запрос и ходит в
 API → `{tracks}` → четыре строки в попапе.
 
 **Офлайн.** `ymd download` или кнопка `⤓` в UI → `download_track` → `encraw`-чанки

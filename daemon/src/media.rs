@@ -48,7 +48,7 @@ pub fn direct_link(host: &str, path: &str, ts: &str, s: &str) -> String {
 }
 
 #[derive(Debug, Clone, Copy)]
-#[allow(dead_code)] // используется для encraw (офлайн) в M3
+#[allow(dead_code)] // ключи нужны для подписи stream/lyrics
 pub enum SecretKey {
     Web,
     Windows,

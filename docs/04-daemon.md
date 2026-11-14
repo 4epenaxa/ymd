@@ -114,6 +114,15 @@ Previous/Seek/SetPosition/Set(Volume)`, сигнал `Seeked`.
 `ymd serve`. Плазмоид получает его командой `ymd session-key` и передаёт
 в заголовке `X-YMD-Session`. Без ключа доступен только `/v1/health`.
 
+### `config`, `media`, `httpd`, `state`
+
+| Модуль | Ответственность |
+|---|---|
+| `config` | чтение `~/.config/ymd/config.toml` (`playback.quality`, `fallback_hq`, `cache.limit_mb`), запись качества из UI |
+| `media` | подписи `file-info`/`lyrics`, `direct_link`, AES-128-CTR для `encraw` |
+| `httpd` | axum-роутер `/v1/*`, авторизация по capability-ключу, SSE `/v1/events`, нормализация ответов API для клиентов |
+| `state` | `State`/`AppState`: очередь, команды, резолв потока, тикер, MPRIS-синхронизация, волна |
+
 ### `doctor`
 
 `ymd doctor` печатает таблицу проверок: ключ, KDE Plasma/plasmashell,
