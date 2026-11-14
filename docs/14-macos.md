@@ -164,6 +164,26 @@ GStreamer в stderr могут отсутствовать в файле лога
 Автозапуск: System Settings → General → Login Items → «+» →
 `ymd-menubar.app`. `LSUIElement=true` в `Info.plist` — иконки в Dock нет.
 
+### DMG для раздачи
+
+```bash
+bash macos/build-dmg.sh                        # .app + dist/ymd-menubar-<версия>.dmg
+bash macos/build-dmg.sh --no-build             # только DMG из готового .app
+bash macos/build-dmg.sh --sign "Developer ID Application: …"
+```
+
+Внутри DMG — `ymd-menubar.app`, симлинк на `/Applications` и короткая памятка.
+Без `--sign` приложение не нотаризовано: macOS предупредит при первом запуске
+(правый клик → «Открыть» либо `xattr -dr com.apple.quarantine /Applications/ymd-menubar.app`).
+DMG собирается только на macOS — `hdiutil` в Linux нет.
+
+Приложить к уже выпущенному релизу:
+
+```bash
+gh release upload v0.3.0 dist/ymd-menubar-0.3.0.dmg
+gh workflow run macos-release.yml -f tag=v0.3.0   # то же в CI, если есть минуты
+```
+
 Устройство:
 
 | Файл | Что |

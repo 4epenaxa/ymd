@@ -109,7 +109,11 @@ bash packaging/macos/build.sh       # ставит зависимости и с�
 
 ```bash
 bash macos/build.sh --install && open ~/Applications/ymd-menubar.app
+bash macos/build-dmg.sh                    # dist/ymd-menubar-<версия>.dmg
 ```
+
+Готовые сборки: `.deb`/`.rpm` — в релизах; DMG собирается на Mac
+(`hdiutil`), в релиз прикладывается вручную или через `macos-release.yml`.
 
 Подробности, LaunchAgent и ограничения — `docs/14-macos.md`.
 

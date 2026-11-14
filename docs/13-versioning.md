@@ -86,6 +86,8 @@ bash scripts/version.sh --tag          # аннотированный тег v0.
    тесты, соберёт `ymd_*.deb`/`*.rpm`, `plasma-widget-ymd_*.deb`/`*.rpm`,
    `ymd-qt_*.deb`/`*.rpm` и `yandex-music-plugin-*.tar.gz`, создаст
    GitHub Release с заметками из `CHANGELOG.md` и приложит файлы.
+   macOS-артефакты (`.dmg`, tar.gz демона) добавляются отдельно:
+   `gh workflow run macos-release.yml -f tag=vX.Y.Z`.
 
 Если workflow упал, тег можно удалить и повторить:
 
@@ -95,7 +97,9 @@ git tag -d v0.3.0 && git push origin :refs/tags/v0.3.0
 
 ## Что видит пользователь
 
-- Страница **Releases** — заметки и готовые `.deb`, `.rpm` и архив плагина.
+- Страница **Releases** — заметки и готовые `.deb`, `.rpm` и архив плагина;
+  macOS-сборки (`.dmg` и tar.gz демона) добавляются туда же вручную или
+  workflow `macos-release`.
 - Бейдж версии в `README.md` — последний релиз.
 - `ymd --version` и `/v1/health` (`version`) — версия запущенного демона.
 - `ymd doctor` — версия и путь лога; `ymd logs` — что происходило.
@@ -115,6 +119,7 @@ git tag -d v0.3.0 && git push origin :refs/tags/v0.3.0
 |---|---|---|
 | `ci.yml` | push в `main`, PR; вручную | версии, `docs-check`, `cargo test` в Docker, архив плагина; при ручном запуске — ещё `.rpm` |
 | `release.yml` | тег `v*` | версия = тег, тесты, `.deb`/`.rpm` + архив, GitHub Release |
+| `macos-release.yml` | вручную | macOS: демон arm64 + `.dmg`, прикладывает к релизу (`.dmg` в Linux не собрать) |
 | `client-scope.yml` | PR | один PR — один клиент |
 | `commit-identity.yml` | PR | автор коммитов — участник проекта |
 
