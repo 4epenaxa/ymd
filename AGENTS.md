@@ -78,7 +78,10 @@ docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:latest \
 3. `notes/<тема>-findings.md` — что проверено живьём, цифры, грабли.
 4. `AGENTS.md` — таблица состояния и «Следующий шаг».
 5. `docs/07-roadmap.md` — статус этапа.
-6. `bash scripts/docs-check.sh` — скрипт должен выдать `ok`.
+6. `bash scripts/docs-check.sh` — должен выдать `ok`. Проверяет: маркеры
+   устаревания, отставание доков от кода, модули без упоминания, **каждый
+   маршрут `/v1/*` из `httpd.rs`** и совпадение копий `format.js`
+   (`plasmoid/contents/ui/format.js` ↔ `app/qml/format.js`).
 7. gitleaks → `git commit` → `git push`.
 
 Правило факта: в `docs/` попадает только проверенное на хосте; догадки живут

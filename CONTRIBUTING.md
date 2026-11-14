@@ -31,7 +31,8 @@ CI проверяет авторов в PR (`.github/workflows/commit-identity.y
   доков — отдельным PR.
 - В `main` попадает **один коммит на PR**: включён squash-merge, ветка
   удаляется после мержа.
-- Перед PR: `bash scripts/docs-check.sh`; для плагина —
+- Перед PR: `bash scripts/docs-check.sh` (сверяет доки с кодом, маршруты `/v1/*`
+  и копии `format.js`); для плагина —
   `noctalia plugins lint ./noctalia`; для демона — `cargo test`.
 - Ревью: `CODEOWNERS` запрашивает владельца каталога автоматически
   (`.github/CODEOWNERS`). Без Pro-плана это запрос, а не блокировка — мержить

@@ -56,5 +56,44 @@ else
   say "· все модули упомянуты"
 fi
 
-[ "$status" -eq 0 ] && say "ok: документация согласована"
+# 4. Каждый маршрут из httpd.rs описан в документации.
+routes=$(grep -oE '"/v1/[^"]*"' daemon/src/httpd.rs 2>/dev/null \
+  | tr -d '"' | sed 's/?.*//' | sort -u)
+undocumented=""
+for route in $routes; do
+  if ! grep -Rq --include='*.md' -- "$route" README.md AGENTS.md docs notes 2>/dev/null; then
+    undocumented="$undocumented $route"
+  fi
+done
+
+if [ -n "$undocumented" ]; then
+  say "· маршруты без описания в документации:"
+  for route in $undocumented; do say "    $route"; done
+  status=1
+else
+  count=$(printf '%s\n' $routes | grep -c . || true)
+  say "· все маршруты описаны ($count)"
+fi
+
+# 5. Копии format.js у клиентов должны совпадать.
+fmt_ref="plasmoid/contents/ui/format.js"
+fmt_copies="app/qml/format.js"
+fmt_bad=""
+if [ -f "$fmt_ref" ]; then
+  for copy in $fmt_copies; do
+    [ -f "$copy" ] || continue
+    if ! cmp -s "$fmt_ref" "$copy"; then
+      fmt_bad="$fmt_bad $copy"
+    fi
+  done
+fi
+
+if [ -n "$fmt_bad" ]; then
+  say "· format.js расходится с $fmt_ref:$fmt_bad"
+  status=1
+else
+  say "· format.js у клиентов совпадает"
+fi
+
+[ "$status" -eq 0 ] && say "ok: документация и клиенты согласованы"
 exit "$status"
