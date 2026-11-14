@@ -236,7 +236,7 @@ end
 
 ~~~bash
 # локальная разработка: path-источник, без git-источника
-noctalia msg plugins source add ym-dev path ~/github/ym-noctalia/noctalia
+noctalia msg plugins source add ym-dev path ~/github/ymd/noctalia
 noctalia msg plugins enable pbolkhovitin/yandex-music
 
 # правки .luau подхватываются хот-релоадом

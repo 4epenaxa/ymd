@@ -56,7 +56,8 @@
 
 ## Публикация
 
-Репозиторий: `git@github.com:pbolkhovitin/ym-noctalia.git` (private).
+Репозиторий: `git@github.com:pbolkhovitin/ymd.git` (public, MIT).
+Прежнее имя `ym-noctalia` — GitHub редиректит старые ссылки.
 После каждого завершённого этапа — коммит + `git push`.
 
 Перед пушем: gitleaks в Docker:
