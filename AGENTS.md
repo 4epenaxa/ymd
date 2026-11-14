@@ -44,10 +44,10 @@
 | `noctalia/bridge.luau` | фоновая SSE-подписка | готов |
 | `scripts/install-noctalia.sh` | симлинк плагина в Noctalia + reload | готов |
 | `scripts/version.sh` | версии: `--check`, `--bump`, `--tag` | готов |
-| `packaging/` | Docker, `.deb`, systemd unit | готов |
+| `packaging/` | Docker, `.deb`, `.rpm`, systemd unit | готов |
 | `scripts/` | сборка, установка, проверки | готов |
 | `.github/workflows/ci.yml` | версии, доки, тесты, архив плагина | готов |
-| `.github/workflows/release.yml` | тег `v*` → `.deb` + GitHub Release | готов |
+| `.github/workflows/release.yml` | тег `v*` → `.deb`/`.rpm` + GitHub Release | готов |
 
 ## Ограничения окружения агента
 

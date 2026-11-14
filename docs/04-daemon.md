@@ -34,7 +34,7 @@ daemon/
   src/config.rs       config.toml
   src/session.rs      capability-ключ
   src/doctor.rs       проверка окружения
-packaging/            Docker, .deb, systemd unit
+packaging/            Docker, .deb, .rpm, systemd unit
 plasmoid/             QML-плазмоид Plasma 6
 ```
 
@@ -313,18 +313,31 @@ limit_mb = 2048
 
 ## Установка и автозапуск
 
-### .deb
+### .deb и .rpm
 
 ```bash
-bash packaging/build-deb.sh --arch arm64   # или amd64
-sudo apt install ./dist/ymd_0.2.0_arm64.deb \
-                 ./dist/plasma-widget-ymd_0.2.0_all.deb
+ver=$(bash scripts/version.sh)
+bash packaging/build-deb.sh --arch arm64   # или amd64 → dist/*.deb
+bash packaging/build-rpm.sh --arch arm64   # → dist/*.rpm (Fedora-контейнер)
+
+sudo apt install ./dist/ymd_${ver}_arm64.deb \
+                 ./dist/plasma-widget-ymd_${ver}_all.deb
+# или Fedora:
+sudo dnf install ./dist/ymd-${ver}-1.fc44.*.rpm \
+                 ./dist/plasma-widget-ymd-${ver}-1.fc44.noarch.rpm
 systemctl --user enable --now ymd.service
 ```
 
-Пакет `ymd` ставит `/usr/bin/ymd` и unit
+Оба пакета `ymd` ставят `/usr/bin/ymd` и unit
 `/usr/lib/systemd/user/ymd.service`; `plasma-widget-ymd` — плазмоид в
 `/usr/share/plasma/plasmoids/io.github.pbolkhovitin.ymd`.
+В RPM зависимости заданы именами Fedora (`gstreamer1`, `libsecret`,
+`playerctl`), а библиотечные дописывает `rpmbuild` автоматически.
+
+Оба сборщика запускают контейнер через `packaging/container-env.sh`: под
+rootless podman нужны `--userns=keep-id` и `--security-opt label=disable`,
+иначе SELinux не пускает контейнер к файлам рабочего каталога, а `-u $(id -u)`
+даёт «Permission denied» на файлы с режимом 0600.
 
 ### Из репозитория
 

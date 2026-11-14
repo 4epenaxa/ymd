@@ -68,6 +68,28 @@ systemctl --user enable --now ymd
 «Добавить виджеты» → «ymd». Отдельное приложение запускается из меню или
 командой `ymd-qt`.
 
+## Установка из .rpm (Fedora)
+
+Те же три пакета собираются в Fedora-контейнере (`rpmbuild`):
+
+```bash
+bash packaging/build-rpm.sh                  # amd64: демон, плазмоид, ymd-qt
+bash packaging/build-rpm.sh --arch arm64     # arm64
+bash packaging/build-rpm.sh --no-qt          # без ymd-qt, быстрее
+
+ver=$(bash scripts/version.sh)
+sudo dnf install ./ymd-${ver}-1.fc44.*.rpm \
+                 ./plasma-widget-ymd-${ver}-1.fc44.noarch.rpm \
+                 ./ymd-qt-${ver}-1.fc44.*.rpm
+systemctl --user daemon-reload
+systemctl --user enable --now ymd
+```
+
+Зависимости проставлены по именам Fedora (`gstreamer1`, `libsecret`,
+`playerctl`), библиотечные зависимости RPM вычисляет сам. Юнит ставится в
+`/usr/lib/systemd/user/ymd.service`, поэтому запускается от пользователя,
+а не от root.
+
 ## Установка плагина Noctalia
 
 Плагин живёт в `noctalia/` и подключается симлинком (Noctalia перезаписывает
@@ -84,7 +106,7 @@ noctalia msg plugins list                 # должен появиться pbol
 ## Релизы и версии
 
 Готовые пакеты и заметки — в [Releases](https://github.com/pbolkhovitin/ymd/releases).
-Релиз ставится тегом `vX.Y.Z` из `main`; CI собирает `.deb` демона,
+Релиз ставится тегом `vX.Y.Z` из `main`; CI собирает `.deb` и `.rpm` демона,
 плазмоида и `ymd-qt`, архив плагина Noctalia и создаёт GitHub Release.
 
 Одна версия на весь проект, источник истины — `Cargo.toml`:
@@ -165,7 +187,7 @@ ymd logs -f         # следить
 | Открытие: главная, жанры/настроения, подборки, плейлисты, избранное, радио | ✅ демон и Noctalia |
 | Плазмоид: компакт, попап, поиск, очередь, режимы | ✅ |
 | Отдельное приложение Qt/Kirigami: окно + трей | ✅ |
-| Пакеты `.deb` (amd64/arm64) | ✅ |
+| Пакеты `.deb` и `.rpm` (amd64/arm64) | ✅ |
 | Тексты песен | ✅ демон, CLI, панель Noctalia |
 | Докачка после обрыва: `.part` + `Range`, проверка ключа | ✅ |
 | Ynison | не сделана |

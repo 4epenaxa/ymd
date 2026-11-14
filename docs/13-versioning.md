@@ -83,9 +83,9 @@ bash scripts/version.sh --tag          # аннотированный тег v0.
    ```
 
 6. Дождаться workflow **release**: он проверит `тег = версия`, прогонит
-   тесты, соберёт `ymd_*.deb`, `plasma-widget-ymd_*.deb`, `ymd-qt_*.deb` и
-   `yandex-music-plugin-*.tar.gz`, создаст GitHub Release с заметками из
-   `CHANGELOG.md` и приложит файлы.
+   тесты, соберёт `ymd_*.deb`/`*.rpm`, `plasma-widget-ymd_*.deb`/`*.rpm`,
+   `ymd-qt_*.deb`/`*.rpm` и `yandex-music-plugin-*.tar.gz`, создаст
+   GitHub Release с заметками из `CHANGELOG.md` и приложит файлы.
 
 Если workflow упал, тег можно удалить и повторить:
 
@@ -95,7 +95,7 @@ git tag -d v0.3.0 && git push origin :refs/tags/v0.3.0
 
 ## Что видит пользователь
 
-- Страница **Releases** — заметки и готовые `.deb`/архив плагина.
+- Страница **Releases** — заметки и готовые `.deb`, `.rpm` и архив плагина.
 - Бейдж версии в `README.md` — последний релиз.
 - `ymd --version` и `/v1/health` (`version`) — версия запущенного демона.
 - `ymd doctor` — версия и путь лога; `ymd logs` — что происходило.
@@ -114,7 +114,7 @@ git tag -d v0.3.0 && git push origin :refs/tags/v0.3.0
 | Workflow | Когда | Что делает |
 |---|---|---|
 | `ci.yml` | push в `main`, PR | версии, `docs-check`, `cargo test` в Docker, архив плагина |
-| `release.yml` | тег `v*` | версия = тег, тесты, `.deb` + архив, GitHub Release |
+| `release.yml` | тег `v*` | версия = тег, тесты, `.deb`/`.rpm` + архив, GitHub Release |
 | `client-scope.yml` | PR | один PR — один клиент |
 | `commit-identity.yml` | PR | автор коммитов — участник проекта |
 
@@ -123,4 +123,5 @@ git tag -d v0.3.0 && git push origin :refs/tags/v0.3.0
 ```bash
 bash packaging/build-deb.sh --arch arm64
 bash packaging/build-qt-deb.sh --arch arm64
+bash packaging/build-rpm.sh --arch arm64
 ```
