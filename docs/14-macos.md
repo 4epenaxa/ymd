@@ -68,6 +68,16 @@ export PKG_CONFIG_PATH=/Library/Frameworks/GStreamer.framework/Versions/1.0/lib/
 ./target/release/ymd serve           # демон на 127.0.0.1:8765
 ```
 
+Если Homebrew GStreamer при запуске сообщает `can't find gi.repository.Gst`,
+не находит `libglib`/`libgobject` или загружает одновременно GTK 3 и GTK 4,
+запускайте демон через `bash macos/run-daemon.sh`. Скрипт использует отдельные
+каталог аудиоплагинов и реестр в `dist/`, исключая GTK/Python-плагины.
+Окружение других приложений не меняется. Для проверки можно передать аргументы:
+`bash macos/run-daemon.sh serve --port 18765`.
+
+На Apple Silicon проверены запуск API на временном порту и беззвучный поток
+`audiotestsrc → audioconvert → audioresample → osxaudiosink`.
+
 Во втором терминале:
 
 ```bash
@@ -139,6 +149,17 @@ bash macos/build.sh              # dist/ymd-menubar.app
 bash macos/build.sh --install    # + ~/Applications
 open ~/Applications/ymd-menubar.app
 ```
+
+Если системный Bash прерывает сборку с `version…: unbound variable`,
+используйте `LC_ALL=C bash macos/build.sh`: в проверенном окружении ошибка
+возникала при разборе `$version` перед многоточием в UTF-8-локали.
+
+Приложение появляется только в строке меню. Пока нет активного трека,
+панель показывает «Ничего не играет»; после входа через `ymd auth login`
+волну можно включить командой `ymd wave` в другом терминале.
+Логи демона находятся в `~/.local/state/ymd/ymd.log` (`ymd logs`);
+SwiftUI-клиент отдельный файл логов не пишет. Сообщения внешнего сканера
+GStreamer в stderr могут отсутствовать в файле лога демона.
 
 Автозапуск: System Settings → General → Login Items → «+» →
 `ymd-menubar.app`. `LSUIElement=true` в `Info.plist` — иконки в Dock нет.

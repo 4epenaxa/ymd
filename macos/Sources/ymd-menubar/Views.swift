@@ -67,19 +67,19 @@ struct PopoverView: View {
     private var transport: some View {
         HStack(spacing: 18) {
             Spacer()
-            Button { model.previous() } {
+            Button { model.previous() } label: {
                 Image(systemName: "backward.fill")
             }
             .buttonStyle(.plain)
 
-            Button { model.toggle() } {
+            Button { model.toggle() } label: {
                 Image(systemName: model.isPlaying ? "pause.fill" : "play.fill")
                     .font(.system(size: 22))
                     .frame(width: 34, height: 34)
             }
             .buttonStyle(.plain)
 
-            Button { model.next() } {
+            Button { model.next() } label: {
                 Image(systemName: "forward.fill")
             }
             .buttonStyle(.plain)
@@ -90,14 +90,14 @@ struct PopoverView: View {
 
     private var modes: some View {
         HStack(spacing: 14) {
-            Button { model.cycleRepeat() } {
+            Button { model.cycleRepeat() } label: {
                 Label(model.repeatLabel, systemImage: "repeat")
                     .labelStyle(.titleAndIcon)
             }
             .buttonStyle(.borderless)
             .foregroundStyle(model.repeatMode == "off" ? Color.secondary : Color.accentColor)
 
-            Button { model.toggleShuffle() } {
+            Button { model.toggleShuffle() } label: {
                 Image(systemName: "shuffle")
             }
             .buttonStyle(.borderless)
@@ -105,7 +105,7 @@ struct PopoverView: View {
 
             Spacer()
 
-            Button { model.like() } {
+            Button { model.like() } label: {
                 Image(systemName: "heart")
             }
             .buttonStyle(.borderless)
