@@ -21,7 +21,7 @@ install -Dm755 "$CARGO_TARGET_DIR/release/ymd" "$top/SOURCES/ymd"
 sed 's|%h/.local/bin/ymd|/usr/bin/ymd|' packaging/ymd.service > "$top/SOURCES/ymd.service"
 install -Dm644 README.md "$top/SOURCES/README.md"
 install -Dm644 LICENSE "$top/SOURCES/LICENSE"
-tar -czf "$top/SOURCES/plasma-widget-ymd.tar.gz" plasmoid
+tar -czf "$top/SOURCES/plasma-widget-ymd.tar.gz" --exclude="plasmoid/tests" plasmoid
 
 for spec in ymd plasma-widget-ymd; do
   sed "s/@VERSION@/$version/g" "packaging/rpm/$spec.spec" > "$top/SPECS/$spec.spec"
