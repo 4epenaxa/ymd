@@ -108,3 +108,17 @@ noctalia msg plugin 'pbolkhovitin/yandex-music:panel' all refresh
 Профилактика: `ymd doctor` теперь проверяет симлинк плагина
 (`noctalia plugin ok -> /home/pbolk/github/ymd/noctalia` или
 `симлинк висит — переустановите`).
+
+## Глиф бара по состоянию (2026-11-14)
+
+Пользователь выбрал динамический вариант: `player-play` — играет,
+`player-pause` — пауза, `music-off` — демон недоступен/пусто.
+Имена проверены по `/usr/share/noctalia/assets/fonts/tabler.json` (5958 иконок,
+все три есть; `music` тоже валиден).
+
+Реализация: `ICONS[status]`, `s.icon_status` вместо `s.icon_set` — вызов
+`barWidget.setGlyph` только при смене глифа, чтобы не мигал при reload.
+`onEnable()` сбрасывает `icon_status`, чтобы после перезапуска плагина глиф
+восстановился.
+
+Проверено: hot reload `widget.luau` → `[ym] off -> playing`, ошибок Luau нет.

@@ -1,11 +1,16 @@
--- widget.luau — бар-виджет: статичная иконка музыки + "Трек — Артист".
+-- widget.luau — бар-виджет: глиф состояния + "Трек — Артист".
 -- Иконка не меняется (никаких play/pause-глифов и обложек): бар остаётся
 -- визуально стабильным, состояние читается по тексту и подсказке.
 -- Без анимаций: обновление раз в секунду только при воспроизведении.
 
 local ymd = require("./lib/ymd.luau")
 
-local ICON = "music"
+local ICONS = {
+  playing = "player-play",
+  paused = "player-pause",
+  stopped = "player-play",
+  off = "music-off",
+}
 local MAX_CHARS = 34
 
 local s = {
@@ -14,7 +19,7 @@ local s = {
   artists = {},
   rev = -1,
   errors = 0,
-  icon_set = false,
+  icon_status = nil,
 }
 
 local function safe_set_text(text)
@@ -41,13 +46,15 @@ local function safe_set_tooltip(text)
   pcall(barWidget.setTooltip, text)
 end
 
--- Иконка ставится один раз: повторные вызовы бессмысленны и мигают при reload.
+-- Иконка отражает состояние и ставится только при его смене: повторные вызовы
+-- бессмысленны и мигают при reload.
 local function ensure_icon()
-  if s.icon_set then
+  local name = ICONS[s.status] or "music"
+  if s.icon_status == name then
     return
   end
-  safe_set_glyph(ICON)
-  s.icon_set = true
+  safe_set_glyph(name)
+  s.icon_status = name
 end
 
 local function line()
@@ -168,7 +175,7 @@ function onIpc(event, payload)
 end
 
 function onEnable()
-  s.icon_set = false
+  s.icon_status = nil
   ensure_icon()
   noctalia.log("[ym] widget enabled")
 end
