@@ -116,8 +116,10 @@ docker run --rm -v "$PWD:/repo" docker.io/zricethezav/gitleaks:latest \
 ## Следующий шаг
 
 1. **Бар Noctalia**: артист теряется (хост режет ~22 символа), play/pause
-   неразличимы (статичный глиф), нет retry при ошибке.
-   Диагностика очереди — `ymd logs`, `notes/logging-findings.md`.
+   неразличимы (статичный глиф). Переподключение после рестарта демона
+   исправлено (`rev` не монотонен, 3 ошибки до «off»), `ymd doctor` ловит
+   висячий симлинк плагина. Диагностика очереди — `ymd logs`,
+   `notes/logging-findings.md`, `notes/noctalia-ui-findings.md`.
 2. **Тексты песен — ✅ демон, CLI, Noctalia.** Плазмоид и `ymd-qt` кнопку ещё
    не имеют: `api::lyrics()`, `GET /v1/lyrics`, `ymd lyrics` готовы.
 3. **Докачка после обрыва — ✅ `.part` + `Range` + отпечаток ключа.**

@@ -13,6 +13,7 @@ local s = {
   title = "",
   artists = {},
   rev = -1,
+  errors = 0,
   icon_set = false,
 }
 
@@ -88,11 +89,19 @@ local function apply(state)
   if type(state) ~= "table" then
     return
   end
-  if (state.rev or -1) <= s.rev then
+  -- Успешный ответ — демон снова на связи.
+  s.errors = 0
+
+  local rev = state.rev or 0
+  -- `rev` монотонен только внутри жизни демона: после `systemctl restart`
+  -- он начинается заново. Сравнение «больше» оставляло виджет в «ymd off»
+  -- навсегда, поэтому пропускаем только точное совпадение.
+  if rev == s.rev then
     return
   end
+  s.rev = rev
 
-  s.rev = state.rev or 0
+  local previous = s.status
   s.status = state.status or "idle"
 
   if state.track then
@@ -103,6 +112,9 @@ local function apply(state)
     s.artists = {}
   end
 
+  if previous ~= s.status then
+    noctalia.log("[ym] " .. tostring(previous) .. " -> " .. tostring(s.status))
+  end
   render()
 end
 
@@ -110,10 +122,17 @@ function update()
   noctalia.setUpdateInterval(s.status == "playing" and 1000 or 3000)
   ymd.get("/v1/state", function(state, err)
     if err then
-      s.status = "off"
-      s.title = ""
-      s.artists = {}
-      render()
+      -- Один сбой (рестарт демона, таймаут) не должен навсегда рисовать «off»:
+      -- показываем его после трёх подряд и продолжаем опрос.
+      s.errors = s.errors + 1
+      if s.errors >= 3 and s.status ~= "off" then
+        s.status = "off"
+        s.title = ""
+        s.artists = {}
+        s.rev = -1
+        noctalia.log("[ym] демон недоступен: " .. tostring(err))
+        render()
+      end
       return
     end
     apply(state)

@@ -46,8 +46,25 @@ pub fn run() {
     };
     row("log", log.exists(), &format!("{} ({human})", log.display()));
 
-    let port = 8765;
-    let listening = std::net::TcpStream::connect(("127.0.0.1", port)).is_ok();
+    // Плагин Noctalia — симлинк из репозитория. После переименования каталога
+    // ссылка остаётся, но ведёт в никуда: виджет продолжает жить в памяти и
+    // показывает устаревшее состояние, пока плагин не переустановят.
+    if let Some(link) = dirs::data_dir().map(|dir| dir.join("noctalia/plugins/yandex-music")) {
+        let detail = match std::fs::symlink_metadata(&link) {
+            Err(_) => "не подключён (bash scripts/install-noctalia.sh)".to_string(),
+            Ok(_) => match std::fs::canonicalize(&link) {
+                Ok(path) => format!("-> {}", path.display()),
+                Err(_) => "симлинк висит — переустановите (install-noctalia.sh)".to_string(),
+            },
+        };
+        row(
+            "noctalia plugin",
+            std::fs::canonicalize(&link).is_ok(),
+            &detail,
+        );
+    }
+
+    let port = 8765;    let listening = std::net::TcpStream::connect(("127.0.0.1", port)).is_ok();
     row(
         "daemon :8765",
         listening,
