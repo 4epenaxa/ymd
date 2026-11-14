@@ -24,10 +24,27 @@ pub fn run() {
     row("plasmashell", on_path("plasmashell"), "панель Plasma");
 
     row("playerctl", on_path("playerctl"), "apt install playerctl");
-    row("gst-launch-1.0", on_path("gst-launch-1.0"), "apt install gstreamer1.0-tools");
+    row(
+        "gst-launch-1.0",
+        on_path("gst-launch-1.0"),
+        "apt install gstreamer1.0-tools",
+    );
     row("mpv", on_path("mpv"), "опционально: apt install mpv");
-    row("secret-tool", on_path("secret-tool"), "apt install libsecret-tools");
+    row(
+        "secret-tool",
+        on_path("secret-tool"),
+        "apt install libsecret-tools",
+    );
     row("curl", on_path("curl"), "проверки HTTP API");
+
+    let log = crate::logging::path();
+    let size = std::fs::metadata(&log).map(|meta| meta.len()).unwrap_or(0);
+    let human = if size < 1024 {
+        format!("{size} Б")
+    } else {
+        format!("{} КиБ", size / 1024)
+    };
+    row("log", log.exists(), &format!("{} ({human})", log.display()));
 
     let port = 8765;
     let listening = std::net::TcpStream::connect(("127.0.0.1", port)).is_ok();
@@ -46,7 +63,12 @@ pub fn run() {
 }
 
 fn row(name: &str, ok: bool, detail: &str) {
-    println!("{:<18} {:<5} {}", name, if ok { "ok" } else { "warn" }, detail);
+    println!(
+        "{:<18} {:<5} {}",
+        name,
+        if ok { "ok" } else { "warn" },
+        detail
+    );
 }
 
 fn on_path(name: &str) -> bool {

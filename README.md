@@ -99,6 +99,21 @@ bash packaging/build-qt-deb.sh --arch amd64
 | `ymd track <id>` / `stream <id>` | метаданные и URL потока |
 | `ymd auth login\|import\|status\|logout` | авторизация |
 | `ymd doctor` | проверка окружения |
+| `ymd logs [-n N] [-f] [--path]` | хвост файла логов |
+
+## Логи
+
+Демон пишет в journald и в файл `~/.local/state/ymd/ymd.log` (ротация на
+5 МиБ). Уровень — `YMD_LOG` (по умолчанию `info`, для разбора очереди удобно
+`YMD_LOG=debug`).
+
+```bash
+ymd logs -n 50      # последние 50 строк
+ymd logs -f         # следить
+```
+
+Разбор «зациклило один трек»: сравните `track=` в строках `eos -> next`,
+`queue step` и `stream resolved` — они должны совпадать.
 
 ## Статус
 

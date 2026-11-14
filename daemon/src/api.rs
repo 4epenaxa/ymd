@@ -328,10 +328,7 @@ impl Client {
         let value = self
             .get(
                 &format!("/artists/{id}/tracks"),
-                &[
-                    ("page", page.to_string()),
-                    ("page-size", "50".to_string()),
-                ],
+                &[("page", page.to_string()), ("page-size", "50".to_string())],
             )
             .await?;
         Ok(unwrap_result(value))
@@ -755,11 +752,8 @@ impl Client {
     /// base64 полный (см. `notes/lyrics-findings.md`).
     pub async fn lyrics(&self, track_id: u64, format: LyricsFormat) -> Result<Lyrics, ApiError> {
         let ts = crate::media::now_ts();
-        let sign = crate::media::sign_lyrics(
-            crate::media::SecretKey::Windows.as_str(),
-            track_id,
-            ts,
-        );
+        let sign =
+            crate::media::sign_lyrics(crate::media::SecretKey::Windows.as_str(), track_id, ts);
 
         let value = self
             .get_with_client(

@@ -162,12 +162,11 @@ pub fn token_from_input(input: &str) -> Result<String, AuthError> {
         return Err(AuthError::NotFound("пустой ввод".into()));
     }
 
-    for part in trimmed.split('#').skip(1).chain(
-        trimmed
-            .split_once('?')
-            .map(|(_, q)| q)
-            .into_iter(),
-    ) {
+    for part in trimmed
+        .split('#')
+        .skip(1)
+        .chain(trimmed.split_once('?').map(|(_, q)| q).into_iter())
+    {
         if let Some(token) = param(part, "access_token") {
             return Ok(token);
         }

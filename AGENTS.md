@@ -30,6 +30,7 @@
 | `daemon/src/cache.rs` | офлайн-кэш `encraw` + AES-CTR | готов |
 | `daemon/src/api.rs` | HTTP-клиент API, поток, поиск, волна | готов |
 | `daemon/src/doctor.rs` | проверка окружения (`ymd doctor`), KDE/apt | готов |
+| `daemon/src/logging.rs` | файл лога `~/.local/state/ymd/ymd.log`, `ymd logs` | готов |
 | `plasmoid/contents/ui/main.qml` | ключ, polling, команды, поиск | готов |
 | `plasmoid/contents/ui/CompactRepresentation.qml` | компакт в панели | готов |
 | `plasmoid/contents/ui/FullRepresentation.qml` | попап: обложка, seek, транспорт, поиск, очередь | готов |
@@ -63,9 +64,12 @@
 Перед пушем: gitleaks в Docker:
 
 ```bash
-docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:latest \
+docker run --rm -v "$PWD:/repo" docker.io/zricethezav/gitleaks:latest \
   detect --source /repo --no-banner
 ```
+
+Если Docker не видит каталог (CIFS, rootless) — локальный бинарь:
+`gitleaks detect --no-banner --redact`.
 
 ## Документация обновляется автоматически
 
@@ -113,6 +117,7 @@ docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:latest \
 
 1. **Бар Noctalia**: артист теряется (хост режет ~22 символа), play/pause
    неразличимы (статичный глиф), нет retry при ошибке.
+   Диагностика очереди — `ymd logs`, `notes/logging-findings.md`.
 2. **Тексты песен — ✅ демон, CLI, Noctalia.** Плазмоид и `ymd-qt` кнопку ещё
    не имеют: `api::lyrics()`, `GET /v1/lyrics`, `ymd lyrics` готовы.
 3. **Докачка после обрыва — ✅ `.part` + `Range` + отпечаток ключа.**

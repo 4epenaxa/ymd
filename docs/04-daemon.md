@@ -132,9 +132,45 @@ Previous/Seek/SetPosition/Set(Volume)`, сигнал `Seeked`.
 ### `doctor`
 
 `ymd doctor` печатает таблицу проверок: ключ, KDE Plasma/plasmashell,
-`playerctl`, `gst-launch-1.0`, `mpv`, `secret-tool`, `curl`, порт 8765.
-Подсказки — для apt/Ubuntu. Предупреждение не является ошибкой: без части
-пакетов доступны не все возможности.
+`playerctl`, `gst-launch-1.0`, `mpv`, `secret-tool`, `curl`, порт 8765,
+путь и размер файла логов. Подсказки — для apt/Ubuntu. Предупреждение не
+является ошибкой: без части пакетов доступны не все возможности.
+
+### `logging`
+
+Один `tracing`-подписчик пишет в **stderr (journald)** и в файл
+`~/.local/state/ymd/ymd.log`. Файл нужен, когда сервис перезапускался или
+событие было ночью: `journalctl --user -u ymd` хранит не всё и неудобен
+для поиска.
+
+| Переменная | По умолчанию | Смысл |
+|---|---|---|
+| `YMD_LOG` | `info` | уровень: `trace`, `debug`, `info`, `warn`, `error`; понимает и `ymd=debug` |
+| `RUST_LOG` | — | используется, если `YMD_LOG` не задан |
+| `YMD_LOG_DIR` | `$XDG_STATE_HOME/ymd` | каталог лога |
+| `YMD_LOG_MAX_MB` | `5` | предел файла до ротации в `ymd.log.1` |
+
+Ротация выполняется при старте демона: переросший файл переименовывается в
+`ymd.log.1`, старый `.1` удаляется. Хвост читается без `sudo`:
+
+```bash
+ymd logs            # последние 100 строк
+ymd logs -n 50      # последние 50
+ymd logs -f         # следить за новыми
+ymd logs --path     # только путь
+```
+
+Что пишется на уровне `info` (специально — для разбора «зациклило трек»):
+
+* `eos -> next` — конец потока: `track`, `index`, `len`, `repeat`, `shuffle`;
+* `queue step` — решение по очереди: какой `index` выбран и какой трек в итоге;
+* `stream resolved` — `track`, `codec`, `bitrate` (или `play from cache`);
+* `player: load <url>` — что реально отдано GStreamer.
+
+Пара `queue step` + `stream resolved` с одинаковым `track` — признак, что
+состояние и звук не разъехались. Если `track` в этих строках разный, значит
+URL резолвился для другого трека (историческая ошибка `repeat=one`).
+
 
 ## Локальный HTTP API
 
@@ -261,6 +297,7 @@ limit_mb = 2048
 | `ymd serve [--port 8765]` | запуск демона |
 | `ymd session-key` | напечатать capability-ключ |
 | `ymd doctor` | проверка окружения |
+| `ymd logs [-n N] [-f] [--path]` | хвост файла логов демона |
 | `ymd status [--json]` | снимок состояния |
 | `ymd ctl <op>` | отправить команду |
 | `ymd search "…" [--json]` | поиск |

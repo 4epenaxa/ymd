@@ -152,11 +152,8 @@ pub fn enforce_limit(keep: &str) -> Result<Vec<String>, String> {
         return Ok(removed);
     }
 
-    let mut order: Vec<(String, u64)> = index
-        .items
-        .values()
-        .map(|e| (e.id.clone(), e.at))
-        .collect();
+    let mut order: Vec<(String, u64)> =
+        index.items.values().map(|e| (e.id.clone(), e.at)).collect();
     order.sort_by_key(|(_, at)| *at);
 
     for (id, _) in order {
@@ -226,7 +223,13 @@ pub async fn download(
     mut progress: impl FnMut(u64, u64),
 ) -> Result<Entry, String> {
     let stream: Stream = client
-        .encraw(track.id.parse().map_err(|_| "id должен быть числом".to_string())?, quality)
+        .encraw(
+            track
+                .id
+                .parse()
+                .map_err(|_| "id должен быть числом".to_string())?,
+            quality,
+        )
         .await
         .map_err(|e| format!("file-info: {e}"))?;
 
@@ -293,7 +296,11 @@ pub async fn download(
             fs::File::create(&part_path).map_err(|e| format!("создать файл: {e}"))?
         }
     };
-    let mut first = if written > 0 { read_head(&part_path) } else { Vec::new() };
+    let mut first = if written > 0 {
+        read_head(&part_path)
+    } else {
+        Vec::new()
+    };
 
     while written < total {
         let end = (written + CHUNK - 1).min(total - 1);

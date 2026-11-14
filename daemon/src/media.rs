@@ -43,7 +43,11 @@ pub fn direct_link(host: &str, path: &str, ts: &str, s: &str) -> String {
     hasher.update(SIGN_SALT.as_bytes());
     hasher.update(path.get(1..).unwrap_or("").as_bytes());
     hasher.update(s.as_bytes());
-    let sign = hasher.finalize().iter().map(|b| format!("{b:02x}")).collect::<String>();
+    let sign = hasher
+        .finalize()
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect::<String>();
     format!("https://{host}/get-mp3/{sign}/{ts}{path}")
 }
 
@@ -135,7 +139,10 @@ mod tests {
     fn lyrics_signature_keeps_padding() {
         // 32 байта HMAC → 44 символа base64 с одним `=`.
         let signature = sign_lyrics(SecretKey::Windows.as_str(), 657960, 1_700_000_000);
-        assert!(signature.ends_with('='), "padding must be kept: {signature}");
+        assert!(
+            signature.ends_with('='),
+            "padding must be kept: {signature}"
+        );
         assert_eq!(signature.len(), 44);
     }
 

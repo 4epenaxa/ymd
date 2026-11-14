@@ -194,13 +194,15 @@ async fn lyrics(
     })?;
 
     let format = crate::api::LyricsFormat::parse(params.format.as_deref().unwrap_or("lrc"));
-    let lyrics = client.lyrics(track_id, format).await.map_err(|err| match err {
-        crate::api::ApiError::Status { status: 404, .. } => (
-            StatusCode::NOT_FOUND,
-            "у трека нет текста".to_string(),
-        ),
-        other => bad_gateway(other.to_string()),
-    })?;
+    let lyrics = client
+        .lyrics(track_id, format)
+        .await
+        .map_err(|err| match err {
+            crate::api::ApiError::Status { status: 404, .. } => {
+                (StatusCode::NOT_FOUND, "у трека нет текста".to_string())
+            }
+            other => bad_gateway(other.to_string()),
+        })?;
 
     Ok(Json(serde_json::json!({
         "id": track_id,
@@ -949,7 +951,9 @@ async fn artist(
         .map(|items| items.iter().filter_map(simplify_track).collect())
         .unwrap_or_default();
 
-    Ok(Json(serde_json::json!({ "artist": meta, "tracks": tracks })))
+    Ok(Json(
+        serde_json::json!({ "artist": meta, "tracks": tracks }),
+    ))
 }
 
 /// `GET /v1/cache` — содержимое офлайн-кэша и лимит.

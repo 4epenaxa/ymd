@@ -458,8 +458,26 @@ impl AppState {
                     }
                     self.local.store(false, Ordering::Relaxed);
                 }
-                "next" => advance(&mut st, 1),
-                "prev" => advance(&mut st, -1),
+                "next" | "prev" => {
+                    let delta = if op == "next" { 1 } else { -1 };
+                    // Индекс мог посчитать `command_async` перед резолвом URL —
+                    // тогда берём именно его, иначе состояние и звук разъедутся.
+                    let target = payload
+                        .and_then(|p| p.get("index"))
+                        .and_then(Value::as_u64)
+                        .map(|index| index as usize);
+                    advance(&mut st, delta, target);
+                    tracing::info!(
+                        op,
+                        index = st.queue.index,
+                        len = st.queue.items.len(),
+                        repeat = %st.queue.repeat,
+                        shuffle = st.queue.shuffle,
+                        track = %st.track.as_ref().map(|t| t.id.as_str()).unwrap_or("-"),
+                        status = %st.status,
+                        "queue step"
+                    );
+                }
                 "like" => {
                     let liked = st.track.as_ref().map(|t| !t.liked).unwrap_or(false);
                     if let Some(track) = st.track.as_mut() {
@@ -800,6 +818,7 @@ impl AppState {
             return self.command(op, payload);
         }
 
+        let mut planned_index: Option<usize> = None;
         let track_id = match op {
             "play_track" => payload.and_then(|v| v.get("id")).and_then(value_to_id),
             "queue_play" => payload
@@ -825,18 +844,24 @@ impl AppState {
                 .and_then(|v| v.get("id"))
                 .and_then(value_to_id),
             _ => {
+                // Тот же алгоритм, что и в `advance`: иначе при `repeat=one`
+                // или `shuffle` резолвился URL чужого трека.
                 let state = self.snapshot();
-                let len = state.queue.items.len();
-                if len == 0 {
-                    None
-                } else {
-                    let delta = if op == "next" { 1 } else { -1 };
-                    let index = (state.queue.index as isize + delta).rem_euclid(len as isize);
-                    state
-                        .queue
-                        .items
-                        .get(index as usize)
-                        .map(|item| item.id.clone())
+                let delta = if op == "next" { 1 } else { -1 };
+                match plan_step(&state, delta) {
+                    Step::Index(index) => {
+                        planned_index = Some(index);
+                        state.queue.items.get(index).map(|item| item.id.clone())
+                    }
+                    Step::Stop => {
+                        tracing::info!(
+                            op,
+                            len = state.queue.items.len(),
+                            repeat = %state.queue.repeat,
+                            "queue step: конец очереди без повтора"
+                        );
+                        None
+                    }
                 }
             }
         };
@@ -872,6 +897,11 @@ impl AppState {
         let mut owned = payload
             .cloned()
             .unwrap_or_else(|| Value::Object(Default::default()));
+        // Явный индекс: `command` не должен выбирать трек повторно (особенно
+        // при shuffle, где второй выбор был бы другим).
+        if let (Some(index), Some(object)) = (planned_index, owned.as_object_mut()) {
+            object.insert("index".to_string(), Value::from(index as u64));
+        }
         if let (Some(url), Some(object)) = (url, owned.as_object_mut()) {
             object.insert("url".to_string(), Value::String(url));
         }
@@ -1359,7 +1389,9 @@ impl AppState {
                 station: Some(station.to_string()),
             });
             st.rev += 1;
-            let _ = self.tx.send(serde_json::to_string(&*st).unwrap_or_default());
+            let _ = self
+                .tx
+                .send(serde_json::to_string(&*st).unwrap_or_default());
         }
 
         Box::pin(self.command_async("queue_play", Some(&serde_json::json!({ "index": 0 })))).await
@@ -1498,7 +1530,7 @@ impl AppState {
             st.position_ms = st.position_ms.saturating_add(1000);
 
             if duration > 0 && st.position_ms >= duration {
-                advance(&mut st, 1);
+                advance(&mut st, 1, None);
             }
 
             st.rev += 1;
@@ -1590,6 +1622,19 @@ impl AppState {
                         .map(|player| player.poll_eos())
                         .unwrap_or(false);
                     if eos {
+                        let before = app.snapshot();
+                        tracing::info!(
+                            track = %before
+                                .track
+                                .as_ref()
+                                .map(|track| track.id.as_str())
+                                .unwrap_or("-"),
+                            index = before.queue.index,
+                            len = before.queue.items.len(),
+                            repeat = %before.queue.repeat,
+                            shuffle = before.queue.shuffle,
+                            "eos -> next"
+                        );
                         if let Err(err) = app.command_async("next", None).await {
                             tracing::warn!("next after eos: {err}");
                         }
@@ -1690,45 +1735,76 @@ fn json_id(id: &str) -> Value {
         .unwrap_or_else(|_| Value::String(id.to_string()))
 }
 
+/// Куда шагнёт воспроизведение: конкретный индекс или конец очереди.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Step {
+    /// Очередь кончилась и повтор выключен.
+    Stop,
+    Index(usize),
+}
+
+/// Решает, какой трек играть следующим.
+///
+/// Чистая функция специально одна на двоих: `command_async` по ней решает,
+/// какой URL резолвить, а `command` — какой трек показать. Пока логика была
+/// продублирована, при `repeat=one` резолвился URL следующего трека, а
+/// состояние оставалось на текущем — и один трек играл по кругу.
+fn plan_step(state: &State, delta: isize) -> Step {
+    let len = state.queue.items.len();
+    if len == 0 {
+        return Step::Stop;
+    }
+
+    // repeat=one: повтор текущего трека (только вперёд).
+    if delta > 0 && state.queue.repeat == "one" {
+        return Step::Index(state.queue.index.min(len - 1));
+    }
+
+    if delta > 0 && state.queue.shuffle && len > 1 {
+        let mut next = state.queue.index;
+        while next == state.queue.index {
+            next = pseudo_random() % len;
+        }
+        return Step::Index(next);
+    }
+
+    let raw = state.queue.index as isize + delta;
+    if state.queue.repeat == "all" {
+        Step::Index(raw.rem_euclid(len as isize) as usize)
+    } else if raw < 0 {
+        Step::Index(0)
+    } else if raw as usize >= len {
+        Step::Stop
+    } else {
+        Step::Index(raw as usize)
+    }
+}
+
 /// Шаг по очереди: +1 — следующий, -1 — предыдущий.
-fn advance(state: &mut State, delta: isize) {
+/// `target` — уже выбранный индекс (его посчитал `plan_step` перед резолвом URL).
+fn advance(state: &mut State, delta: isize, target: Option<usize>) {
     let len = state.queue.items.len();
     if len == 0 {
         state.position_ms = 0;
         return;
     }
 
-    // repeat=one: повтор текущего трека (только вперёд).
-    if delta > 0 && state.queue.repeat == "one" {
-        state.position_ms = 0;
-        return;
-    }
-
-    let index = if delta > 0 && state.queue.shuffle && len > 1 {
-        let mut next = state.queue.index;
-        while next == state.queue.index {
-            next = pseudo_random() % len;
-        }
-        next
-    } else {
-        let raw = state.queue.index as isize + delta;
-        if state.queue.repeat == "all" {
-            raw.rem_euclid(len as isize) as usize
-        } else if raw < 0 {
-            0
-        } else if raw as usize >= len {
-            // Конец очереди без повтора.
-            state.position_ms = 0;
-            state.status = "stopped".to_string();
-            return;
-        } else {
-            raw as usize
-        }
+    let step = match target {
+        Some(index) if index < len => Step::Index(index),
+        _ => plan_step(state, delta),
     };
 
-    state.queue.index = index;
-    state.track = Some(track_from_queue_item(&state.queue.items[index]));
-    state.position_ms = 0;
+    match step {
+        Step::Stop => {
+            state.position_ms = 0;
+            state.status = "stopped".to_string();
+        }
+        Step::Index(index) => {
+            state.queue.index = index;
+            state.track = Some(track_from_queue_item(&state.queue.items[index]));
+            state.position_ms = 0;
+        }
+    }
 }
 
 fn pseudo_random() -> usize {
@@ -1992,6 +2068,56 @@ mod tests {
         let after = app.snapshot();
         assert_eq!(before.queue.index, after.queue.index);
         assert_eq!(after.position_ms, 0);
+    }
+
+    #[test]
+    fn plan_step_matches_advance_for_every_repeat_mode() {
+        let mut state = State::default();
+        state.queue.items = vec![
+            QueueItem::from(
+                &track_from_value(&serde_json::json!({ "id": "1", "title": "One" })).unwrap(),
+            ),
+            QueueItem::from(
+                &track_from_value(&serde_json::json!({ "id": "2", "title": "Two" })).unwrap(),
+            ),
+        ];
+        state.queue.sync_length();
+        state.queue.index = 0;
+
+        state.queue.repeat = "one".into();
+        assert_eq!(plan_step(&state, 1), Step::Index(0));
+        state.queue.repeat = "all".into();
+        assert_eq!(plan_step(&state, 1), Step::Index(1));
+        state.queue.index = 1;
+        assert_eq!(plan_step(&state, 1), Step::Index(0));
+        state.queue.repeat = "off".into();
+        assert_eq!(plan_step(&state, 1), Step::Stop);
+        assert_eq!(plan_step(&state, -1), Step::Index(0));
+    }
+
+    #[test]
+    fn next_with_explicit_index_takes_that_track() {
+        let app = AppState::new();
+        app.command(
+            "queue_set",
+            Some(&serde_json::json!({
+                "tracks": [
+                    { "id": "1", "title": "One" },
+                    { "id": "2", "title": "Two" }
+                ],
+                "index": 0
+            })),
+        )
+        .unwrap();
+        app.command("repeat", Some(&serde_json::json!({ "value": "one" })))
+            .unwrap();
+
+        // Так `command_async` передаёт индекс, для которого уже скачан URL.
+        app.command("next", Some(&serde_json::json!({ "index": 1 })))
+            .unwrap();
+        let state = app.snapshot();
+        assert_eq!(state.queue.index, 1);
+        assert_eq!(state.track.unwrap().id, "2");
     }
 
     #[test]
