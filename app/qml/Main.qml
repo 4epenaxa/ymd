@@ -10,7 +10,7 @@ Kirigami.ApplicationWindow {
     height: 640
     minimumWidth: 360
     minimumHeight: 520
-    title: "Yandex Music"
+    title: "ymd"
     visible: true
 
     property var st: client.state || ({})
@@ -192,7 +192,7 @@ Kirigami.ApplicationWindow {
                 Layout.fillWidth: true
 
                 Kirigami.Heading {
-                    text: "Yandex Music"
+                    text: "ymd"
                     level: 2
                     Layout.fillWidth: true
                 }

@@ -14,7 +14,7 @@ Tray::Tray(QObject *parent)
     m_item->setStatus(KStatusNotifierItem::Active);
     m_item->setIconByName(QStringLiteral("ymd-qt"));
     m_item->setStandardActionsEnabled(false);
-    m_item->setToolTip(QStringLiteral("Yandex Music"), QString(), QStringLiteral("ymd-qt"));
+    m_item->setToolTip(QStringLiteral("ymd"), QString(), QStringLiteral("ymd-qt"));
 
     m_menu = new QMenu();
     QAction *show = m_menu->addAction(QIcon::fromTheme(QStringLiteral("window-new")),
@@ -91,7 +91,7 @@ void Tray::setState(const QVariantMap &state)
     }
 
     if (m_item) {
-        m_item->setToolTip(title.isEmpty() ? QStringLiteral("Yandex Music") : title,
+        m_item->setToolTip(title.isEmpty() ? QStringLiteral("ymd") : title,
                            artist, QStringLiteral("ymd-qt"));
     }
 }
