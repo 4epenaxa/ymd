@@ -10,7 +10,10 @@ Item {
     property var applet
 
     implicitWidth: Kirigami.Units.gridUnit * 24
-    implicitHeight: column.implicitHeight + Kirigami.Units.largeSpacing * 2
+    // Попап растёт по контенту, но не выше 38 gridUnit: длинную очередь
+    // прокручивает ScrollView, а не экран.
+    implicitHeight: Math.min(column.implicitHeight + Kirigami.Units.largeSpacing * 2,
+                             Kirigami.Units.gridUnit * 38)
 
     Component.onCompleted: applet.loadPlaylists()
 
@@ -229,8 +232,15 @@ Item {
             onAccepted: applet.search(text)
         }
 
+        PlasmaComponents3.Label {
+            Layout.fillWidth: true
+            text: "Найдено · " + applet.searchResults.length
+            font.bold: true
+            visible: applet.searchResults.length > 0
+        }
+
         Repeater {
-            model: applet.searchResults.slice(0, 4)
+            model: applet.searchResults
             delegate: TrackRow {
                 item: modelData
                 onClicked: applet.cmd("play_track", modelData)
@@ -302,12 +312,12 @@ Item {
         }
 
         PlasmaComponents3.Label {
-            text: "Очередь"
+            text: "Очередь" + (applet.queueItems.length > 0 ? " · " + applet.queueItems.length : "")
             font.bold: true
         }
 
         Repeater {
-            model: applet.queueItems.slice(0, 4)
+            model: applet.queueItems
             delegate: TrackRow {
                 item: modelData
                 rowIndex: index
