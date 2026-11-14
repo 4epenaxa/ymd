@@ -49,6 +49,9 @@ Rust-демон `ymd`. Без Electron, без анимаций по умолч�
 Скриншоты плазмоида и `ymd-qt` появятся с KDE-хоста: здесь запущен niri, эти
 клиенты на данной машине не собирались и не запускались.
 
+Social preview для GitHub — `docs/images/social-preview.png` (1280×640),
+пересобирается `bash scripts/social-preview.sh`.
+
 ## Установка из .deb
 
 Пакеты собираются в `dist/`:

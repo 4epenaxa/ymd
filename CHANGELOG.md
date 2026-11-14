@@ -11,6 +11,12 @@
 
 ### Добавлено
 
+- Social preview для GitHub: `docs/images/social-preview.png` (1280×640) и
+  скрипт `scripts/social-preview.sh` для его пересборки.
+
+
+### Добавлено
+
 - Скриншоты в `docs/images/` и раздел «Скриншоты» в `README.md`
   (бар и панель Noctalia на niri).
 - Сборка RPM для Fedora: `packaging/build-rpm.sh` собирает демон, плазмоид
