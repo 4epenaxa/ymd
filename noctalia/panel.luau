@@ -134,13 +134,17 @@ local function quality_label()
 end
 
 -- Компактная иконка-кнопка: один набор (tabler), один размерный ряд.
-local function icon_button(glyph, tooltip, action, variant, selected)
+local function icon_button(glyph, tooltip, action, variant, selected, size)
+  -- Одинаковые габариты у всех транспортных кнопок: primary-заливка play
+  -- иначе смотрится мельче соседних «призрачных» кнопок без фона.
   return ui.button({
     glyph = glyph,
     tooltip = tooltip,
     variant = variant or "ghost",
     controlSize = "sm",
-    glyphSize = 16,
+    glyphSize = size or 18,
+    width = 32,
+    height = 32,
     selected = selected,
     onClick = action,
   })
@@ -291,7 +295,9 @@ local function transport()
       s.status == "playing" and "player-pause" or "player-play",
       s.status == "playing" and "Пауза" or "Играть",
       "toggle",
-      "primary"
+      "primary",
+      nil,
+      s.status == "playing" and 22 or 20
     ),
     icon_button("player-track-next", "Следующий трек", "next"),
     ui.spacer({}),
@@ -668,16 +674,18 @@ play_list = function(tracks)
   if #tracks == 0 then
     return
   end
-  ymd.cmd_payload("queue_set", { tracks = tracks, index = 0 }, function(ok)
+  -- play = true: демон сам выставит текущий трек, разрешит URL и запустит плеер.
+  -- Отдельный cmd("play") после queue_set играл бы прошлый трек: команда play
+  -- резолвит URL только когда статус ещё не playing.
+  ymd.cmd_payload("queue_set", { tracks = tracks, index = 0, play = true }, function(ok)
     if not ok then
       s.hint = "очередь: не удалось поставить"
       render()
       return
     end
-    ymd.cmd("play", function()
-      s.view = "now"
-      refresh()
-    end)
+    s.view = "now"
+    s.prev = nil
+    refresh()
   end)
 end
 
