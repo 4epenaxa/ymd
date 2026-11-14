@@ -115,7 +115,8 @@ bash macos/build-dmg.sh                    # dist/ymd-menubar-<версия>.dmg
 Готовые сборки: `.deb`/`.rpm` — в релизах; DMG собирается на Mac
 (`hdiutil`), в релиз прикладывается вручную или через `macos-release.yml`.
 
-Подробности, LaunchAgent и ограничения — `docs/14-macos.md`.
+Подробности, LaunchAgent и ограничения — `docs/14-macos.md`;
+бриф для работы над macOS-частью — `docs/15-macos-brief.md`.
 
 ## Установка плагина Noctalia
 

@@ -11,6 +11,9 @@
 
 ### Добавлено
 
+- `docs/15-macos-brief.md` — бриф для внешнего контрибьютора: сборка, запуск,
+  правила PR и что прислать после проверки; каталог `/macos/` закреплён за
+  `@4epenaxa` в `CODEOWNERS`.
 - Social preview для GitHub: `docs/images/social-preview.png` (1280×640) и
   скрипт `scripts/social-preview.sh` для его пересборки.
 - Скриншоты в `docs/images/` и раздел «Скриншоты» в `README.md`

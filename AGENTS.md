@@ -14,7 +14,8 @@
 5. `docs/11-qt-app.md` — отдельное приложение.
 6. `docs/design/ui-rules.md` → `docs/design/plasma.md` / `docs/design/noctalia.md`.
 7. `docs/07-roadmap.md` — что дальше.
-8. `docs/13-versioning.md` — версии, теги и релизы; `docs/14-macos.md` — macOS; `CHANGELOG.md`.
+8. `docs/13-versioning.md` — версии, теги и релизы; `docs/14-macos.md` — macOS;
+   `docs/15-macos-brief.md` — бриф для контрибьютора по `/macos/`; `CHANGELOG.md`.
 9. `notes/kde-port-findings.md` — факты порта и грабли; `notes/design-audit.md` — аудит панели Noctalia.
 
 ## Состояние кода
