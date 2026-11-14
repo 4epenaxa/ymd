@@ -112,9 +112,11 @@ bash scripts/version.sh --tag && git push origin vX.Y.Z
    маршрут `/v1/*` из `httpd.rs`**, совпадение копий `format.js`
    (`plasmoid/contents/ui/format.js` ↔ `app/qml/format.js`) и **версии
    в четырёх манифестах** (`scripts/version.sh --check`).
-7. `CHANGELOG.md` — пункт в `[Unreleased]`; версия — только через
+7. `bash scripts/pr-check.sh --body <файл>` — оформление PR (см. раздел
+   «PR и issue»).
+8. `CHANGELOG.md` — пункт в `[Unreleased]`; версия — только через
    `scripts/version.sh --bump`.
-8. gitleaks → `git commit` → `git push`.
+9. gitleaks → `git commit` → `git push`.
 
 Правило факта: в `docs/` попадает только проверенное на хосте; догадки живут
 в `notes/` с пометкой «гипотеза». Устаревшие обещания удаляются, а не остаются
@@ -139,6 +141,56 @@ bash scripts/version.sh --tag && git push origin vX.Y.Z
 - `ymd-qt` не дублирует `format.js`: копия должна совпадать с
   `plasmoid/contents/ui/format.js` (`cmp`).
 - Факт попадает в `docs/` только после проверки; иначе — в `notes/`.
+
+## PR и issue
+
+Формат PR — `.github/PULL_REQUEST_TEMPLATE.md`; правила — `CONTRIBUTING.md`.
+Проверка `pr-policy` (`scripts/pr-check.sh`) идёт на каждый PR и падает, если:
+
+- заголовок не в стиле Conventional Commits (`fix(scope): …`, `feat: …`) —
+  при squash-merge он становится сообщением коммита в `main`;
+- нет разделов шаблона, пустой «Что меняется»/«Как проверить» или не отмечен
+  ни один клиент;
+- галочки «Клиент» не совпадают с каталогами в diff;
+- тронут `daemon/`, `plasmoid/`, `app/`, `noctalia/` или `macos/`, а в
+  `CHANGELOG.md` → `[Unreleased]` не добавлен пункт.
+
+Агент перед PR обязан:
+
+1. Ветка от свежего `main`: `feat/<тема>`, `fix/<тема>`, `docs/<тема>`.
+2. Один PR — один клиент; `noctalia/` и `plasmoid|app/` вместе запрещены
+   (`client-scope`), демон и общие доки — отдельным PR.
+3. Заполнить все пять разделов шаблона, не удаляя заголовки; в «Как проверить» —
+   команды и ожидаемый результат.
+4. Отметить клиенты, каталоги которых реально менялись.
+5. Добавить пункт в `CHANGELOG.md` → `[Unreleased]` при правках кода.
+6. Локально: `bash scripts/pr-check.sh --body /tmp/pr.md` и
+   `bash scripts/docs-check.sh`.
+
+Issue — только через формы `.github/ISSUE_TEMPLATE/` (обязательные поля
+проверяет GitHub); вопросы по установке и уязвимости — по ссылкам из
+`config.yml`, не публичным issue.
+
+### Codex
+
+Codex читает `AGENTS.md` автоматически (от корня проекта до текущего
+каталога); `AGENTS.override.md` рядом — локальный override, в репозиторий его
+не коммитим. Отдельный `.codex/AGENTS.md` не нужен — Codex его не ищет.
+
+Перед PR Codex выполняет:
+
+```bash
+bash scripts/docs-check.sh
+bash scripts/pr-check.sh --body /tmp/pr.md
+git status --short          # в diff только файлы одного клиента
+git log -1 --format='%an <%ae>'
+```
+
+При ревью PR Codex проверяет те же пункты: заголовок Conventional Commits,
+один клиент, пункт в `CHANGELOG.md`, отсутствие токена и прямых запросов к
+API Яндекса в клиентах, зелёные `docs-check` и `pr-check`. Содержательную
+оценку архитектуры и UI это не заменяет — последнее слово за владельцем
+каталога из `CODEOWNERS`.
 
 ## Следующий шаг
 
