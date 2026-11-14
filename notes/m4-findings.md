@@ -62,6 +62,18 @@ wave_more          → queue 5 → 10, batchId обновился
 
 `cargo test -p ymd` → 24 passed.
 
+### Волна и `repeat=one` (2026-11-14)
+
+Проверено живьём: если перед `wave_start` стоял `repeat=one`, волна играла
+первый трек по кругу и не шла по списку. Теперь `wave_start`/`radio_start`
+ставят `repeat=all`, `shuffle=false`; `advance` после EOS переключает очередь:
+
+```
+-- repeat=one на старте  → len 5, idx 0, repeat one
+-- wave_start            → repeat all, idx 0, «Cosby Sweater»
+-- advance (эмуляция EOS)→ idx 1, «Девочки свободных взглядов»
+```
+
 ## Не сделано
 
 - `trackStarted` автоматически при смене трека (сейчас только вручную через `wave_feedback`).

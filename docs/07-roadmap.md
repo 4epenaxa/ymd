@@ -99,6 +99,15 @@ KDE-порт ✅ ──> Qt-приложение ✅ ──> открытие и
 Плазмоид и Noctalia-панель переведены на `like_track`, лайк больше не теряется.
 Дальше — интерфейсы: главная и каталог в клиентах, экран Device Flow.
 
+## Дальше: macOS
+
+- Now Playing в Пункте управления, на экране блокировки и медиа-клавиши:
+  `MPNowPlayingInfoCenter` + `MPRemoteCommandCenter` в `ymd-menubar`,
+  команды уходят в `POST /v1/cmd`. Зона `/macos/` — `@4epenaxa`,
+  вводная — `docs/15-macos-brief.md`.
+- DMG с подписью Developer ID и нотаризацией — когда появится macOS-раннер
+  или сборка на Mac.
+
 ## Критерии готовности
 
 - `ymd doctor` без ошибок на чистом Ubuntu 26.04.

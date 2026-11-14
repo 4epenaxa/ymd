@@ -1,4 +1,14 @@
 {
   "widget.bar.title": "ymd",
-  "panel.title": "ymd"
+  "panel.title": "ymd",
+  "settings": {
+    "label": {
+      "label": "Bar label",
+      "description": "Show the app name or the current track next to the icon",
+      "options": {
+        "app": "App name (ymd)",
+        "title": "Track — artist"
+      }
+    }
+  }
 }

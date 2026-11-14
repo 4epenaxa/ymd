@@ -1,6 +1,5 @@
--- widget.luau — бар-виджет: глиф состояния + "Трек — Артист".
--- Иконка не меняется (никаких play/pause-глифов и обложек): бар остаётся
--- визуально стабильным, состояние читается по тексту и подсказке.
+-- widget.luau — бар-виджет: глиф состояния + подпись (имя приложения или трек).
+-- Глиф отражает действие по клику: играет → пауза, пауза → играть.
 -- Без анимаций: обновление раз в секунду только при воспроизведении.
 
 local ymd = require("./lib/ymd.luau")
@@ -13,6 +12,16 @@ local ICONS = {
   off = "music-off",
 }
 local MAX_CHARS = 34
+
+-- Подпись в баре: имя приложения (по умолчанию) или «Трек — Артист».
+-- Значение приходит из настроек виджета (plugin.toml → [[widget.setting]]).
+local function label_mode()
+  local ok, value = pcall(noctalia.getConfig, "label")
+  if ok and value == "title" then
+    return "title"
+  end
+  return "app"
+end
 
 local s = {
   status = "off",
@@ -61,6 +70,9 @@ end
 local function line()
   if s.status == "off" then
     return "ymd off"
+  end
+  if label_mode() == "app" then
+    return "ymd"
   end
   if s.title == "" then
     return ""

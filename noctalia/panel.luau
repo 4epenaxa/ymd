@@ -19,6 +19,17 @@ local s = {
   artist = "",
   position = 0,
   duration = 0,
+  volume = 1,
+  volume_before = 1,
+  volume_at = nil,
+  volume_sent = 0,
+  seek_at = nil,
+  seek_sent = 0,
+  server_position = 0,
+  server_volume = 1,
+  dragging = false,
+  open = false,
+  stream = nil,
   liked = false,
   query = "",
   cover_url = "",
@@ -86,13 +97,6 @@ local function cover_block()
     return nil
   end
   return ui.image({ path = s.cover_path, fit = "cover", width = 44, height = 44 })
-end
-
-local function progress()
-  if s.duration <= 0 then
-    return 0
-  end
-  return math.min(1, s.position / s.duration)
 end
 
 local function fmt_time(ms)
@@ -269,15 +273,45 @@ local function progress_block()
     return ui.progress({ progress = 0, height = 2, fill = "primary", track = "outline/0.4" })
   end
   return ui.column({ gap = 2 }, {
-    ui.progress({
-      progress = progress(),
-      height = 2,
-      fill = "primary",
-      track = "outline/0.4",
+    -- Перемотка: клик в любое место и протяжка мышью.
+    ui.slider({
+      min = 0,
+      max = s.duration,
+      step = 1000,
+      value = math.max(0, math.min(s.position, s.duration)),
+      controlSize = "sm",
+      flexGrow = 1,
+      onChange = "ym_seek",
+      onDragEnd = "ym_seek_commit",
     }),
     ui.row({ justify = "space_between" }, {
       ui.label({ text = fmt_time(s.position), color = "on_surface_variant", fontSize = 10 }),
       ui.label({ text = fmt_time(s.duration), color = "on_surface_variant", fontSize = 10 }),
+    }),
+  })
+end
+
+-- Громкость отдельной полосой: не смешивается с перемоткой и не зависит от MPRIS.
+local function volume_block()
+  local volume = tonumber(s.volume) or 1
+  local percent = math.floor(volume * 100 + 0.5)
+  return ui.row({ gap = 6, align = "center" }, {
+    icon_button(volume <= 0.001 and "volume-off" or "volume", "Выключить/включить звук", "ym_mute"),
+    ui.slider({
+      min = 0,
+      max = 1,
+      step = 0.01,
+      value = volume,
+      controlSize = "sm",
+      flexGrow = 1,
+      onChange = "ym_volume",
+      onDragEnd = "ym_volume_commit",
+    }),
+    ui.label({
+      text = percent .. "%",
+      color = "on_surface_variant",
+      fontSize = 10,
+      width = 34,
     }),
   })
 end
@@ -996,6 +1030,7 @@ render = function()
   if s.view == "now" then
     body[#body + 1] = track_block()
     body[#body + 1] = progress_block()
+    body[#body + 1] = volume_block()
   end
 
   if s.view ~= "auth" and s.view ~= "settings" then
@@ -1227,7 +1262,18 @@ local function apply(state)
 
   s.rev = state.rev or 0
   s.status = state.status or "idle"
-  s.position = state.positionMs or 0
+
+  -- Пока пользователь тянет ползунок, позиция из демона не должна дёргать ручку.
+  local now = noctalia.nowMs()
+  s.server_position = tonumber(state.positionMs) or s.server_position or 0
+  local scrubbing = s.dragging or (s.seek_at ~= nil and (now - s.seek_at) < 1200)
+  if not scrubbing then
+    s.position = s.server_position
+  end
+  s.server_volume = tonumber(state.volume) or s.server_volume or 1
+  if not (s.volume_at ~= nil and (now - s.volume_at) < 800) then
+    s.volume = s.server_volume
+  end
 
   if state.track then
     s.title = state.track.title or "—"
@@ -1257,6 +1303,79 @@ local function apply(state)
   s.codec = state.codec
 end
 
+-- ── перемотка и громкость ────────────────────────────────────────────────
+
+local function scrubbing()
+  return s.dragging or (s.seek_at ~= nil and (noctalia.nowMs() - s.seek_at) < 1200)
+end
+
+-- onChange приходит и при клике, и на каждый шаг протяжки: отправляем seek
+-- не чаще раза в 150 мс, финальное значение добирает onDragEnd.
+-- Хост может вызвать onChange и при перерисовке с новым value: такие «эхо»
+-- отличаем по близости к позиции демона, иначе ползунок замирает и трек
+-- дёргается на каждом кадре.
+function ym_seek(value)
+  local ms = math.max(0, math.floor(tonumber(value) or 0))
+  if s.duration > 0 then
+    ms = math.min(ms, s.duration)
+  end
+  s.position = ms
+  if not s.dragging and math.abs(ms - (s.server_position or ms)) < 2000 then
+    return
+  end
+  local now = noctalia.nowMs()
+  s.seek_at = now
+  if now - (s.seek_sent or 0) >= 150 then
+    s.seek_sent = now
+    ymd.cmd_payload("seek", { positionMs = ms })
+  end
+end
+
+function ym_seek_commit()
+  s.dragging = false
+  if s.duration <= 0 then
+    return
+  end
+  local ms = math.max(0, math.min(s.position, s.duration))
+  s.seek_at = noctalia.nowMs()
+  s.seek_sent = s.seek_at
+  ymd.cmd_payload("seek", { positionMs = ms })
+end
+
+function ym_volume(value)
+  local volume = math.max(0, math.min(1, tonumber(value) or 0))
+  s.volume = volume
+  -- Эхо перерисовки: значение уже такое, как в демоне — команду не шлём.
+  if math.abs(volume - (tonumber(s.server_volume) or volume)) < 0.02 then
+    return
+  end
+  local now = noctalia.nowMs()
+  s.volume_at = now
+  if now - (s.volume_sent or 0) >= 120 then
+    s.volume_sent = now
+    ymd.cmd_payload("volume", { value = volume })
+  end
+end
+
+function ym_volume_commit()
+  s.volume_at = noctalia.nowMs()
+  s.volume_sent = s.volume_at
+  ymd.cmd_payload("volume", { value = tonumber(s.volume) or 1 })
+end
+
+function ym_mute()
+  if (tonumber(s.volume) or 0) > 0.001 then
+    s.volume_before = s.volume
+    s.volume = 0
+  else
+    s.volume = s.volume_before or 1
+  end
+  s.volume_at = noctalia.nowMs()
+  ymd.cmd_payload("volume", { value = s.volume }, function()
+    render()
+  end)
+end
+
 refresh = function()
   ymd.get("/v1/state", function(state, err)
     local before = s.rev
@@ -1268,7 +1387,8 @@ refresh = function()
     end
     -- На списках перерисовка каждые 2 с сбрасывала бы позицию скролла:
     -- обновляем только «Сейчас» или когда демон реально поменял состояние.
-    if s.view == "now" or s.rev ~= before or err ~= nil then
+    -- Во время протяжки ползунка не перерисовываем: иначе ручка «убегает».
+    if (s.view == "now" or s.rev ~= before or err ~= nil) and not scrubbing() then
       render()
     end
   end)
@@ -1353,7 +1473,6 @@ function ym_wave()
 end
 
 function update()
-  noctalia.setUpdateInterval(2000)
   ensure_cover()
   refresh()
   poll_auth()
@@ -1362,9 +1481,36 @@ function update()
   end
 end
 
+-- Панель не получает тики `update()` (в отличие от service и bar):
+-- поэтому живые обновления идут по SSE, а `update()` остаётся для первого кадра.
+local function start_stream()
+  if s.stream ~= nil then
+    return
+  end
+  s.stream = ymd.subscribe(function(state)
+    apply(state)
+    if s.open and not scrubbing() then
+      render()
+    end
+  end, function(reason)
+    noctalia.log("[panel] stream closed: " .. tostring(reason))
+    s.stream = nil
+    -- Демон перезапустился: переподключаемся, пока панель открыта.
+    if s.open then
+      start_stream()
+    end
+  end)
+end
+
 function onOpen(context)
+  s.open = true
+  start_stream()
   update()
   refresh_account()
+end
+
+function onClose()
+  s.open = false
 end
 
 function toggle()
@@ -1427,6 +1573,19 @@ function onIpc(event, payload)
   end
   if event == "refresh" then
     refresh()
+    return
+  end
+  -- Ручная проверка без мыши: noctalia msg plugin …:panel all seek 60000
+  if event == "seek" then
+    ym_seek(tonumber(target) or 0)
+    ym_seek_commit()
+    render()
+    return
+  end
+  if event == "volume" then
+    ym_volume(tonumber(target) or 0)
+    ym_volume_commit()
+    render()
   end
 end
 
