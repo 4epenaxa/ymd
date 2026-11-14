@@ -41,8 +41,8 @@
 | `app/src/tray.{h,cpp}` | трей: окно, play/pause, next/prev, выход | готов |
 | `app/qml/Main.qml` | окно `ymd-qt`: обложка, seek, транспорт, поиск, очередь | готов |
 | `noctalia/lib/ymd.luau` | HTTP-клиент демона: ключ, GET, cmd, SSE | готов |
-| `noctalia/widget.luau` | бар-виджет: иконка + «трек — артист», клики и колесо | готов |
-| `noctalia/panel.luau` | панель Noctalia: шапка, прогресс, транспорт, поиск, очередь | готов |
+| `noctalia/widget.luau` | бар-виджет: глиф по статусу, подпись `app`/`title` (настройка), клики и колесо | готов |
+| `noctalia/panel.luau` | панель Noctalia: шапка, seek-слайдер, громкость, транспорт, поиск, очередь | готов |
 | `noctalia/bridge.luau` | фоновая SSE-подписка | готов |
 | `scripts/install-noctalia.sh` | симлинк плагина в Noctalia + reload | готов |
 | `scripts/version.sh` | версии: `--check`, `--bump`, `--tag` | готов |

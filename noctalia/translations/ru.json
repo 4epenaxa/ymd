@@ -1,4 +1,14 @@
 {
   "widget.bar.title": "ymd",
-  "panel.title": "ymd"
+  "panel.title": "ymd",
+  "settings": {
+    "label": {
+      "label": "Подпись в баре",
+      "description": "Что показывать рядом с иконкой: имя приложения или текущий трек",
+      "options": {
+        "app": "Имя приложения (ymd)",
+        "title": "Трек — артист"
+      }
+    }
+  }
 }
