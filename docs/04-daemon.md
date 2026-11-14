@@ -367,6 +367,10 @@ Unit: `ExecStart=%h/.local/bin/ymd serve`, `Restart=on-failure`,
 | M3 | офлайн-кэш `encraw` + AES-CTR, LRU, `download-album` |
 | M4 | «Моя волна» с автодогрузкой, `wave_feedback` |
 
+`wave_start` и `radio_start` заменяют очередь и принудительно ставят
+`repeat=all`, `shuffle=false`: волна бесконечна, и унаследованный `repeat=one`
+превращал её в повтор первого трека.
+
 ## Тексты песен
 
 `api::lyrics(track_id, LyricsFormat::{Text, Lrc})`:

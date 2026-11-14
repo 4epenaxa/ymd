@@ -1341,6 +1341,9 @@ impl AppState {
             st.queue.items = items;
             st.queue.sync_length();
             st.queue.index = 0;
+            // Волна и радио бесконечны: repeat=one превращал бы их
+            // в «зациклило первый трек».
+            st.queue.repeat = "all".to_string();
             st.queue.shuffle = false;
             st.wave = Some(WaveInfo {
                 session_id: batch.session_id.clone(),
@@ -1386,6 +1389,9 @@ impl AppState {
             st.queue.items = items;
             st.queue.sync_length();
             st.queue.index = 0;
+            // Волна и радио бесконечны: repeat=one превращал бы их
+            // в «зациклило первый трек».
+            st.queue.repeat = "all".to_string();
             st.queue.shuffle = false;
             st.wave = Some(WaveInfo {
                 session_id: batch.session_id.clone(),
