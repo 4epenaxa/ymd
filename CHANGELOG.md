@@ -20,6 +20,8 @@
 - macOS (Apple Silicon): `packaging/macos/build.sh`, `docs/14-macos.md`,
   `mpris_stub.rs` и `cfg`-разделение модулей — демон собирается под arm64,
   токен хранится в связке ключей (`security`), MPRIS отключён.
+- `ymd-menubar`: SwiftUI-клиент для строки меню macOS (обложка, прогресс,
+  транспорт, повтор, shuffle) — `macos/build.sh`.
 
 ### Исправлено
 

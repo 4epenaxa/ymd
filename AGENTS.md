@@ -45,6 +45,7 @@
 | `noctalia/bridge.luau` | фоновая SSE-подписка | готов |
 | `scripts/install-noctalia.sh` | симлинк плагина в Noctalia + reload | готов |
 | `scripts/version.sh` | версии: `--check`, `--bump`, `--tag` | готов |
+| `macos/` | `ymd-menubar` (SwiftUI) + сборка демона под Apple Silicon | готов |
 | `packaging/` | Docker, `.deb`, `.rpm`, systemd unit | готов |
 | `scripts/` | сборка, установка, проверки | готов |
 | `.github/workflows/ci.yml` | версии, доки, тесты, архив плагина; ручной прогон `.rpm` | готов |

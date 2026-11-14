@@ -127,6 +127,38 @@ launchctl list | grep ymd
 `KeepAlive` перезапускает демон после падения — аналог `Restart=on-failure`
 в systemd-юните.
 
+## Меню-бар клиент (`ymd-menubar`)
+
+Маленькое SwiftUI-приложение: иконка в строке меню, по клику — попап с
+обложкой, треком, прогрессом, транспортом, повтором и shuffle. Работает через
+тот же локальный API, что плазмоид и `ymd-qt`, поэтому демон должен быть
+запущен (`ymd serve`).
+
+```bash
+bash macos/build.sh              # dist/ymd-menubar.app
+bash macos/build.sh --install    # + ~/Applications
+open ~/Applications/ymd-menubar.app
+```
+
+Автозапуск: System Settings → General → Login Items → «+» →
+`ymd-menubar.app`. `LSUIElement=true` в `Info.plist` — иконки в Dock нет.
+
+Устройство:
+
+| Файл | Что |
+|---|---|
+| `macos/Sources/ymd-menubar/YmdMenuBarApp.swift` | `MenuBarExtra` + попап |
+| `APIClient.swift` | `/v1/state`, `/v1/cmd`, чтение ключа |
+| `AppModel.swift` | опрос (1 с при игре, 3 с в паузе), команды |
+| `Views.swift` | обложка, прогресс, транспорт, режимы |
+
+Ограничения текущей версии:
+
+- нет SSE — состояние обновляется опросом (задержка до секунды);
+- нет системного «Now Playing» и медиа-клавиш: для них демону нужен
+  `MPNowPlayingInfoCenter`/`MPRemoteCommandCenter` (отдельный этап);
+- перемотка кликом по прогрессу пока не сделана — только `ymd ctl seek`.
+
 ## Ограничения
 
 - **Нет системной интеграции.** macOS не использует MPRIS; чтобы медиа-клавиши

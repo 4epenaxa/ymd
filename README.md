@@ -105,6 +105,12 @@ bash packaging/macos/build.sh       # ставит зависимости и с�
 ./target/release/ymd serve
 ```
 
+Меню-бар клиент (SwiftUI, попап как в системном «Now Playing»):
+
+```bash
+bash macos/build.sh --install && open ~/Applications/ymd-menubar.app
+```
+
 Подробности, LaunchAgent и ограничения — `docs/14-macos.md`.
 
 ## Установка плагина Noctalia

@@ -27,7 +27,7 @@ fi
 # Гейт — только исходники клиентов и демона: они меняют поведение.
 # Упаковка, скрипты и workflow — подсказка, а не блокер (правка в spec или
 # исключение тестов из rpm не требует раздела в docs).
-src_ts=$(git log -1 --format=%ct -- daemon plasmoid app noctalia 2>/dev/null || echo 0)
+src_ts=$(git log -1 --format=%ct -- daemon plasmoid app noctalia macos 2>/dev/null || echo 0)
 pkg_ts=$(git log -1 --format=%ct -- packaging scripts .github 2>/dev/null || echo 0)
 docs_ts=$(git log -1 --format=%ct -- README.md AGENTS.md CONTRIBUTING.md CHANGELOG.md docs notes 2>/dev/null || echo 0)
 
