@@ -95,5 +95,14 @@ else
   say "· format.js у клиентов совпадает"
 fi
 
-[ "$status" -eq 0 ] && say "ok: документация и клиенты согласованы"
+# 6. Версии в манифестах совпадают (один источник — Cargo.toml).
+if version_out=$(bash scripts/version.sh --check 2>&1); then
+  say "· версии манифестов согласованы"
+else
+  say "· версии манифестов расходятся:"
+  printf '%s\n' "$version_out" | sed 's/^/    /'
+  status=1
+fi
+
+[ "$status" -eq 0 ] && say "ok: документация, клиенты и версии согласованы"
 exit "$status"

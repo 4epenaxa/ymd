@@ -52,9 +52,11 @@ CI проверяет авторов в PR (`.github/workflows/commit-identity.y
   доков — отдельным PR.
 - В `main` попадает **один коммит на PR**: включён squash-merge, ветка
   удаляется после мержа.
-- Перед PR: `bash scripts/docs-check.sh` (сверяет доки с кодом, маршруты `/v1/*`
-  и копии `format.js`); для плагина —
+- Перед PR: `bash scripts/docs-check.sh` (сверяет доки с кодом, маршруты `/v1/*`,
+  копии `format.js` и версии манифестов); для плагина —
   `noctalia plugins lint ./noctalia`; для демона — `cargo test`.
+- `CHANGELOG.md` пополняется в том же PR: пункт в `[Unreleased]`. Версии
+  в манифестах не правятся руками — только `bash scripts/version.sh --bump`.
 - Ревью: `CODEOWNERS` запрашивает владельца каталога автоматически
   (`.github/CODEOWNERS`). Без Pro-плана это запрос, а не блокировка — мержить
   без ревью владельца не принято.
@@ -73,9 +75,23 @@ CI проверяет авторов в PR (`.github/workflows/commit-identity.y
 
 ## Настройки репозитория
 
-Уже включено: squash-only мерж, удаление ветки после мержа, обновление ветки
-из `main`, два workflow проверок.
+Включено: squash-only мерж, удаление ветки после мержа, обновление ветки
+из `main`, четыре workflow (CI, release, client-scope, commit-identity).
+Ветка `main` защищена: обязательны проверки `scope` и `author`, нужно
+одобрение ревью, force-push и удаление ветки запрещены. Администратор
+(`enforce_admins = false`) может пушить напрямую — так выпускаются релизы.
 
-Недоступно на free-плане (появится с GitHub Pro): обязательный PR, обязательное
-ревью, запрет force-push в `main`, required checks. До этого force-push в
-общие ветки не делаем, `main` не переписываем.
+## Релиз
+
+Релиз делает мейнтейнер, порядок — `docs/13-versioning.md`:
+
+```bash
+bash scripts/version.sh --bump patch     # версия + раздел в CHANGELOG
+git commit -am "chore(release): 0.2.1" && git push origin main
+bash scripts/version.sh --tag            # v0.2.1
+git push origin v0.2.1                   # запускает release.yml
+```
+
+Тег и версия в манифестах обязаны совпадать — workflow `release` падает
+раньше сборки, если это не так. Пакеты и заметки появляются на странице
+Releases автоматически.

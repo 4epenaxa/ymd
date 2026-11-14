@@ -1,5 +1,9 @@
 # ymd
 
+[![ci](https://github.com/pbolkhovitin/ymd/actions/workflows/ci.yml/badge.svg)](https://github.com/pbolkhovitin/ymd/actions/workflows/ci.yml)
+[![release](https://img.shields.io/github/v/release/pbolkhovitin/ymd?label=release)](https://github.com/pbolkhovitin/ymd/releases)
+[![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 Клиент **Яндекс Музыки** для **KDE Plasma 6** и **Noctalia** (niri): плазмоид
 в панели, отдельное приложение на Qt/Kirigami, плагин для бара Noctalia и
 Rust-демон `ymd`. Без Electron, без анимаций по умолчанию, с нативным PipeWire
@@ -35,8 +39,10 @@ Rust-демон `ymd`. Без Electron, без анимаций по умолч�
 ```bash
 bash packaging/build-deb.sh --arch arm64      # демон и плазмоид
 bash packaging/build-qt-deb.sh --arch arm64   # отдельное приложение
-sudo apt install ./ymd_0.2.0_arm64.deb ./plasma-widget-ymd_0.2.0_all.deb \
-                 ./ymd-qt_0.2.0_arm64.deb
+
+ver=$(bash scripts/version.sh)
+sudo apt install ./ymd_${ver}_arm64.deb ./plasma-widget-ymd_${ver}_all.deb \
+                 ./ymd-qt_${ver}_arm64.deb
 systemctl --user daemon-reload
 systemctl --user enable --now ymd
 ```
@@ -57,6 +63,23 @@ noctalia msg plugins list                 # должен появиться pbol
 
 Виджет добавляется в бар через настройки Noctalia (`Bar` → `widgets`), панель
 открывается правым кликом по виджету. Нужен Noctalia 5.x и `plugin_api >= 35`.
+
+## Релизы и версии
+
+Готовые пакеты и заметки — в [Releases](https://github.com/pbolkhovitin/ymd/releases).
+Релиз ставится тегом `vX.Y.Z` из `main`; CI собирает `.deb` демона,
+плазмоида и `ymd-qt`, архив плагина Noctalia и создаёт GitHub Release.
+
+Одна версия на весь проект, источник истины — `Cargo.toml`:
+
+```bash
+bash scripts/version.sh            # текущая версия
+bash scripts/version.sh --check    # манифесты совпадают
+ymd --version                      # версия запущенного демона
+```
+
+Порядок выпуска, правила SemVer и changelog — `docs/13-versioning.md`,
+история изменений — `CHANGELOG.md`.
 
 ## Быстрый старт для разработки
 

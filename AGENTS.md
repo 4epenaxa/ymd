@@ -14,7 +14,8 @@
 5. `docs/11-qt-app.md` — отдельное приложение.
 6. `docs/design/ui-rules.md` → `docs/design/plasma.md` / `docs/design/noctalia.md`.
 7. `docs/07-roadmap.md` — что дальше.
-8. `notes/kde-port-findings.md` — факты порта и грабли; `notes/design-audit.md` — аудит панели Noctalia.
+8. `docs/13-versioning.md` — версии, теги и релизы; `CHANGELOG.md`.
+9. `notes/kde-port-findings.md` — факты порта и грабли; `notes/design-audit.md` — аудит панели Noctalia.
 
 ## Состояние кода
 
@@ -42,8 +43,11 @@
 | `noctalia/panel.luau` | панель Noctalia: шапка, прогресс, транспорт, поиск, очередь | готов |
 | `noctalia/bridge.luau` | фоновая SSE-подписка | готов |
 | `scripts/install-noctalia.sh` | симлинк плагина в Noctalia + reload | готов |
+| `scripts/version.sh` | версии: `--check`, `--bump`, `--tag` | готов |
 | `packaging/` | Docker, `.deb`, systemd unit | готов |
 | `scripts/` | сборка, установка, проверки | готов |
+| `.github/workflows/ci.yml` | версии, доки, тесты, архив плагина | готов |
+| `.github/workflows/release.yml` | тег `v*` → `.deb` + GitHub Release | готов |
 
 ## Ограничения окружения агента
 
@@ -85,9 +89,12 @@ docker run --rm -v "$PWD:/repo" docker.io/zricethezav/gitleaks:latest \
 5. `docs/07-roadmap.md` — статус этапа.
 6. `bash scripts/docs-check.sh` — должен выдать `ok`. Проверяет: маркеры
    устаревания, отставание доков от кода, модули без упоминания, **каждый
-   маршрут `/v1/*` из `httpd.rs`** и совпадение копий `format.js`
-   (`plasmoid/contents/ui/format.js` ↔ `app/qml/format.js`).
-7. gitleaks → `git commit` → `git push`.
+   маршрут `/v1/*` из `httpd.rs`**, совпадение копий `format.js`
+   (`plasmoid/contents/ui/format.js` ↔ `app/qml/format.js`) и **версии
+   в четырёх манифестах** (`scripts/version.sh --check`).
+7. `CHANGELOG.md` — пункт в `[Unreleased]`; версия — только через
+   `scripts/version.sh --bump`.
+8. gitleaks → `git commit` → `git push`.
 
 Правило факта: в `docs/` попадает только проверенное на хосте; догадки живут
 в `notes/` с пометкой «гипотеза». Устаревшие обещания удаляются, а не остаются

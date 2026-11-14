@@ -1,0 +1,60 @@
+name: ci
+
+# Быстрые проверки на каждый push в main и каждый PR:
+# версии во всех манифестах, документация, тесты демона в Docker,
+# сборка архива плагина Noctalia.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  version:
+    name: версии
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Сверить манифесты
+        run: bash scripts/version.sh --check
+
+  docs:
+    name: документация
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # docs-check сравнивает время коммитов кода и доков
+      - name: docs-check
+        run: bash scripts/docs-check.sh
+
+  test:
+    name: тесты (Docker)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - name: cargo test
+        run: bash packaging/run-tests.sh -p ymd
+
+  plugin:
+    name: архив плагина
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Собрать tar.gz
+        run: bash packaging/build-noctalia.sh
+      - name: Проверить содержимое
+        run: |
+          version=$(bash scripts/version.sh)
+          archive="dist/yandex-music-plugin-${version}.tar.gz"
+          test -f "$archive"
+          tar tzf "$archive" | grep -qx './plugin.toml'
+          echo "готово: $archive ($(stat -c%s "$archive") байт)"
