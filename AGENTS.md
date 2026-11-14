@@ -14,7 +14,8 @@
 5. `docs/11-qt-app.md` — отдельное приложение.
 6. `docs/design/ui-rules.md` → `docs/design/plasma.md` / `docs/design/noctalia.md`.
 7. `docs/07-roadmap.md` — что дальше.
-8. `docs/13-versioning.md` — версии, теги и релизы; `docs/14-macos.md` — macOS; `CHANGELOG.md`.
+8. `docs/13-versioning.md` — версии, теги и релизы; `docs/14-macos.md` — macOS;
+   `docs/15-macos-brief.md` — бриф для контрибьютора по `/macos/`; `CHANGELOG.md`.
 9. `notes/kde-port-findings.md` — факты порта и грабли; `notes/design-audit.md` — аудит панели Noctalia.
 
 ## Состояние кода
@@ -45,11 +46,12 @@
 | `noctalia/bridge.luau` | фоновая SSE-подписка | готов |
 | `scripts/install-noctalia.sh` | симлинк плагина в Noctalia + reload | готов |
 | `scripts/version.sh` | версии: `--check`, `--bump`, `--tag` | готов |
-| `macos/` | `ymd-menubar` (SwiftUI) + сборка демона под Apple Silicon | готов |
+| `macos/` | `ymd-menubar` (SwiftUI), `build-dmg.sh`, сборка демона под Apple Silicon | готов |
 | `packaging/` | Docker, `.deb`, `.rpm`, systemd unit | готов |
 | `scripts/` | сборка, установка, проверки | готов |
 | `.github/workflows/ci.yml` | версии, доки, тесты, архив плагина; ручной прогон `.rpm` | готов |
 | `.github/workflows/release.yml` | тег `v*` → `.deb`/`.rpm` + GitHub Release | готов |
+| `.github/workflows/macos-release.yml` | вручную: `.dmg` + tar.gz демона arm64 к релизу | готов |
 
 ## Ограничения окружения агента
 
