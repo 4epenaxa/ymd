@@ -1,5 +1,17 @@
 # Плагин Noctalia
 
+## Как это выглядит
+
+Снято на Fedora 44 / niri 26.04 / Noctalia v5.4.1, тема Dracula, поток FLAC.
+
+Бар: значок действия и «трек — артист» в одной капсуле с остальными виджетами.
+
+![Виджет в баре](../images/noctalia-bar.png)
+
+Панель: качество, обложка, перемотка, транспорт, режимы, вкладки и очередь.
+
+![Панель](../images/noctalia-panel.png)
+
 ## Манифест
 
 Фактический `noctalia/plugin.toml`:
@@ -7,7 +19,7 @@
 ~~~toml
 id = "pbolkhovitin/yandex-music"
 name = "Yandex Music"
-version = "0.2.0"
+version = "0.2.1"
 plugin_api = 35
 author = "pbolkhovitin"
 license = "MIT"
