@@ -22,7 +22,7 @@ fi
 version="$(bash scripts/version.sh)"
 app="$repo/dist/ymd-menubar.app"
 
-echo "сборка ymd-menubar $version…"
+echo "сборка ymd-menubar ${version}…"
 swift build --package-path macos -c release --product ymd-menubar
 
 rm -rf "$app"
