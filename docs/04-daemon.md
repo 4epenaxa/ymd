@@ -77,6 +77,12 @@ GStreamer `playbin3` с `autoaudiosink` (на KDE это PipeWire). Умеет
 `play_track` не дублирует трек, а переключается на существующий.
 `queue_play`, `queue_remove`, `queue_clear` меняют очередь без перезапуска.
 
+`repeat=one` действует только на автопереход после конца потока: тикер шлёт
+внутреннюю операцию `advance`, и она повторяет текущий трек. Ручные `next`/`prev`
+(панель, бар, MPRIS, медиа-клавиши) всегда двигаются по очереди — иначе кнопка
+«следующий» зацикливала один трек. `repeat=one` сохраняется в `state.json`
+и переживает перезапуск демона.
+
 ### `mpris_server` и `mpris`
 
 `mpris_server.rs` публикует `org.mpris.MediaPlayer2.ymd` и `/Player` через

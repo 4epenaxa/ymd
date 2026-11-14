@@ -458,15 +458,18 @@ impl AppState {
                     }
                     self.local.store(false, Ordering::Relaxed);
                 }
-                "next" | "prev" => {
-                    let delta = if op == "next" { 1 } else { -1 };
+                "next" | "prev" | "advance" => {
+                    let delta = if op == "prev" { -1 } else { 1 };
+                    // Ручной next/prev игнорирует repeat=one; автопереход («advance»)
+                    // его соблюдает — иначе один трек крутится по кругу.
+                    let honor_repeat_one = op == "advance";
                     // Индекс мог посчитать `command_async` перед резолвом URL —
                     // тогда берём именно его, иначе состояние и звук разъедутся.
                     let target = payload
                         .and_then(|p| p.get("index"))
                         .and_then(Value::as_u64)
                         .map(|index| index as usize);
-                    advance(&mut st, delta, target);
+                    advance(&mut st, delta, target, honor_repeat_one);
                     tracing::info!(
                         op,
                         index = st.queue.index,
@@ -812,7 +815,7 @@ impl AppState {
         let needs_url = play_requested
             && matches!(
                 op,
-                "play_track" | "queue_play" | "queue_set" | "next" | "prev"
+                "play_track" | "queue_play" | "queue_set" | "next" | "prev" | "advance"
             );
         if !needs_url || self.player.is_none() {
             return self.command(op, payload);
@@ -845,10 +848,12 @@ impl AppState {
                 .and_then(value_to_id),
             _ => {
                 // Тот же алгоритм, что и в `advance`: иначе при `repeat=one`
-                // или `shuffle` резолвился URL чужого трека.
+                // или `shuffle` резолвился URL чужого трека. Ручной next/prev
+                // не учитывает repeat=one, автопереход «advance» — учитывает.
                 let state = self.snapshot();
-                let delta = if op == "next" { 1 } else { -1 };
-                match plan_step(&state, delta) {
+                let delta = if op == "prev" { -1 } else { 1 };
+                let honor_repeat_one = op == "advance";
+                match plan_step(&state, delta, honor_repeat_one) {
                     Step::Index(index) => {
                         planned_index = Some(index);
                         state.queue.items.get(index).map(|item| item.id.clone())
@@ -1530,7 +1535,7 @@ impl AppState {
             st.position_ms = st.position_ms.saturating_add(1000);
 
             if duration > 0 && st.position_ms >= duration {
-                advance(&mut st, 1, None);
+                advance(&mut st, 1, None, true);
             }
 
             st.rev += 1;
@@ -1635,7 +1640,7 @@ impl AppState {
                             shuffle = before.queue.shuffle,
                             "eos -> next"
                         );
-                        if let Err(err) = app.command_async("next", None).await {
+                        if let Err(err) = app.command_async("advance", None).await {
                             tracing::warn!("next after eos: {err}");
                         }
                         continue;
@@ -1749,14 +1754,16 @@ enum Step {
 /// какой URL резолвить, а `command` — какой трек показать. Пока логика была
 /// продублирована, при `repeat=one` резолвился URL следующего трека, а
 /// состояние оставалось на текущем — и один трек играл по кругу.
-fn plan_step(state: &State, delta: isize) -> Step {
+fn plan_step(state: &State, delta: isize, honor_repeat_one: bool) -> Step {
     let len = state.queue.items.len();
     if len == 0 {
         return Step::Stop;
     }
 
-    // repeat=one: повтор текущего трека (только вперёд).
-    if delta > 0 && state.queue.repeat == "one" {
+    // repeat=one: повтор текущего трека. Действует только на автоматический
+    // переход (EOS/тикер): ручной next/prev должен идти дальше по очереди,
+    // иначе кнопка «следующий» зацикливает один и тот же трек.
+    if honor_repeat_one && delta > 0 && state.queue.repeat == "one" {
         return Step::Index(state.queue.index.min(len - 1));
     }
 
@@ -1782,7 +1789,8 @@ fn plan_step(state: &State, delta: isize) -> Step {
 
 /// Шаг по очереди: +1 — следующий, -1 — предыдущий.
 /// `target` — уже выбранный индекс (его посчитал `plan_step` перед резолвом URL).
-fn advance(state: &mut State, delta: isize, target: Option<usize>) {
+/// `honor_repeat_one` — учитывать ли `repeat=one` (только для автоперехода).
+fn advance(state: &mut State, delta: isize, target: Option<usize>, honor_repeat_one: bool) {
     let len = state.queue.items.len();
     if len == 0 {
         state.position_ms = 0;
@@ -1791,7 +1799,7 @@ fn advance(state: &mut State, delta: isize, target: Option<usize>) {
 
     let step = match target {
         Some(index) if index < len => Step::Index(index),
-        _ => plan_step(state, delta),
+        _ => plan_step(state, delta, honor_repeat_one),
     };
 
     match step {
@@ -2056,7 +2064,7 @@ mod tests {
     }
 
     #[test]
-    fn repeat_one_keeps_track_on_next() {
+    fn repeat_one_keeps_track_on_auto_advance() {
         let app = AppState::new();
         app.command("play_track", Some(&track_json())).unwrap();
         app.command("enqueue", Some(&track_json())).unwrap();
@@ -2064,7 +2072,7 @@ mod tests {
             .unwrap();
 
         let before = app.snapshot();
-        app.command("next", None).unwrap();
+        app.command("advance", None).unwrap();
         let after = app.snapshot();
         assert_eq!(before.queue.index, after.queue.index);
         assert_eq!(after.position_ms, 0);
@@ -2085,14 +2093,42 @@ mod tests {
         state.queue.index = 0;
 
         state.queue.repeat = "one".into();
-        assert_eq!(plan_step(&state, 1), Step::Index(0));
+        assert_eq!(plan_step(&state, 1, true), Step::Index(0));
+        // Ручной next в repeat=one идёт дальше по очереди, а не повторяет трек.
+        assert_eq!(plan_step(&state, 1, false), Step::Index(1));
+        assert_eq!(plan_step(&state, -1, false), Step::Index(0));
         state.queue.repeat = "all".into();
-        assert_eq!(plan_step(&state, 1), Step::Index(1));
+        assert_eq!(plan_step(&state, 1, true), Step::Index(1));
         state.queue.index = 1;
-        assert_eq!(plan_step(&state, 1), Step::Index(0));
+        assert_eq!(plan_step(&state, 1, true), Step::Index(0));
         state.queue.repeat = "off".into();
-        assert_eq!(plan_step(&state, 1), Step::Stop);
-        assert_eq!(plan_step(&state, -1), Step::Index(0));
+        assert_eq!(plan_step(&state, 1, true), Step::Stop);
+        assert_eq!(plan_step(&state, -1, true), Step::Index(0));
+    }
+
+    #[test]
+    fn manual_next_skips_repeat_one_but_eos_repeats() {
+        let app = AppState::new();
+        app.command(
+            "queue_set",
+            Some(&serde_json::json!({
+                "tracks": [
+                    { "id": "1", "title": "One", "durationMs": 1000 },
+                    { "id": "2", "title": "Two", "durationMs": 1000 }
+                ]
+            })),
+        )
+        .unwrap();
+        app.command("repeat", Some(&serde_json::json!({ "value": "one" })))
+            .unwrap();
+
+        // Кнопка «следующий»: следующий трек, несмотря на repeat=one.
+        app.command("next", None).unwrap();
+        assert_eq!(app.snapshot().queue.index, 1);
+
+        // Автопереход после EOS: остаётся на текущем.
+        app.command("advance", None).unwrap();
+        assert_eq!(app.snapshot().queue.index, 1);
     }
 
     #[test]
