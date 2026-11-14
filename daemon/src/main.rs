@@ -11,7 +11,12 @@ mod doctor;
 mod httpd;
 mod logging;
 mod media;
+#[cfg(target_os = "linux")]
 mod mpris;
+#[cfg(not(target_os = "linux"))]
+#[path = "mpris_stub.rs"]
+mod mpris;
+#[cfg(target_os = "linux")]
 mod mpris_server;
 mod oauth;
 mod player;
@@ -193,17 +198,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             };
             app.restore_state();
             app.spawn_ticker();
-            let mpris_app = app.clone();
-            tokio::spawn(async move {
-                match mpris_server::serve(mpris_app).await {
-                    Ok(connection) => {
-                        // Держим соединение живым: при drop шина отпускает имя.
-                        let _connection = connection;
-                        std::future::pending::<()>().await;
+            #[cfg(target_os = "linux")]
+            {
+                let mpris_app = app.clone();
+                tokio::spawn(async move {
+                    match mpris_server::serve(mpris_app).await {
+                        Ok(connection) => {
+                            // Держим соединение живым: при drop шина отпускает имя.
+                            let _connection = connection;
+                            std::future::pending::<()>().await;
+                        }
+                        Err(err) => tracing::warn!("mpris недоступен: {err}"),
                     }
-                    Err(err) => tracing::warn!("mpris недоступен: {err}"),
-                }
-            });
+                });
+            }
             httpd::serve(app, port, key).await
         }
         Command::SessionKey => {

@@ -13,14 +13,13 @@
 
 - Social preview для GitHub: `docs/images/social-preview.png` (1280×640) и
   скрипт `scripts/social-preview.sh` для его пересборки.
-
-
-### Добавлено
-
 - Скриншоты в `docs/images/` и раздел «Скриншоты» в `README.md`
   (бар и панель Noctalia на niri).
 - Сборка RPM для Fedora: `packaging/build-rpm.sh` собирает демон, плазмоид
   и `ymd-qt` через `rpmbuild` в контейнере; пакеты прикладываются к релизу.
+- macOS (Apple Silicon): `packaging/macos/build.sh`, `docs/14-macos.md`,
+  `mpris_stub.rs` и `cfg`-разделение модулей — демон собирается под arm64,
+  токен хранится в связке ключей (`security`), MPRIS отключён.
 
 ### Исправлено
 

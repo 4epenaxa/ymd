@@ -14,6 +14,7 @@
 | Noctalia-плагин | ✅ | бар-виджет и панель (Luau), аудит и фикс переполнения |
 | Логирование | ✅ | файл `ymd.log` с ротацией, `ymd logs`, события очереди/EOS |
 | Версии и релизы | ✅ | `scripts/version.sh`, `CHANGELOG.md`, CI, релиз по тегу `v*` |
+| macOS (Apple Silicon) | ✅ демон | `packaging/macos/build.sh`, `docs/14-macos.md`; GStreamer из Homebrew, без MPRIS и GUI |
 
 Проверено на Ubuntu 26.04: демон собирается в Docker для amd64/arm64,
 плазмоид устанавливается через `kpackagetool6` и через .deb, попап

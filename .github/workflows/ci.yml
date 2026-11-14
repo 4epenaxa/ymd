@@ -14,6 +14,10 @@ on:
         description: "Собрать .rpm (Fedora, контейнер) — проверка упаковки"
         type: boolean
         default: false
+      macos:
+        description: "Собрать демон под macOS arm64 (macOS-раннер)"
+        type: boolean
+        default: false
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -88,3 +92,25 @@ jobs:
           name: rpm
           path: dist/*.rpm
           if-no-files-found: error
+
+  macos:
+    name: macOS arm64 (вручную)
+    if: github.event_name == 'workflow_dispatch' && inputs.macos
+    runs-on: macos-14
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Зависимости (GStreamer из Homebrew)
+        run: |
+          brew install pkgconf gstreamer gst-plugins-base gst-plugins-good
+          brew --prefix gstreamer
+      - name: Собрать демон
+        env:
+          PKG_CONFIG_PATH: ${{ env.HOMEBREW_PREFIX }}/lib/pkgconfig
+        run: |
+          cargo build --release -p ymd
+          ./target/release/ymd --version
+          ./target/release/ymd session-key | head -c 8; echo "…"
+      - name: Проверить, что Linux-модули отключены
+        run: |
+          ./target/release/ymd doctor || true

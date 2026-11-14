@@ -14,7 +14,7 @@
 5. `docs/11-qt-app.md` — отдельное приложение.
 6. `docs/design/ui-rules.md` → `docs/design/plasma.md` / `docs/design/noctalia.md`.
 7. `docs/07-roadmap.md` — что дальше.
-8. `docs/13-versioning.md` — версии, теги и релизы; `CHANGELOG.md`.
+8. `docs/13-versioning.md` — версии, теги и релизы; `docs/14-macos.md` — macOS; `CHANGELOG.md`.
 9. `notes/kde-port-findings.md` — факты порта и грабли; `notes/design-audit.md` — аудит панели Noctalia.
 
 ## Состояние кода
@@ -27,7 +27,8 @@
 | `daemon/src/session.rs` | capability-ключ `0600`, `ymd session-key` | готов |
 | `daemon/src/player.rs` | GStreamer `playbin3` → PipeWire | готов |
 | `daemon/src/mpris_server.rs` | исходящий MPRIS (zbus) | готов |
-| `daemon/src/mpris.rs` | внешний MPRIS через `playerctl` (резерв) | готов |
+| `daemon/src/mpris.rs` | внешний MPRIS через `playerctl` (резерв, Linux) | готов |
+| `daemon/src/mpris_stub.rs` | заглушка MPRIS для macOS | готов |
 | `daemon/src/cache.rs` | офлайн-кэш `encraw` + AES-CTR | готов |
 | `daemon/src/api.rs` | HTTP-клиент API, поток, поиск, волна | готов |
 | `daemon/src/doctor.rs` | проверка окружения (`ymd doctor`), KDE/apt | готов |

@@ -93,6 +93,20 @@ systemctl --user enable --now ymd
 `/usr/lib/systemd/user/ymd.service`, поэтому запускается от пользователя,
 а не от root.
 
+## Сборка для macOS (Apple Silicon)
+
+Демон собирается под arm64 обычным `cargo`; плазмоид и плагин Noctalia —
+Linux-only, а `ymd-qt` на macOS ждёт отдельной работы (трей через D-Bus).
+
+```bash
+brew install pkgconf gstreamer gst-plugins-base gst-plugins-good
+bash packaging/macos/build.sh       # ставит зависимости и собирает release
+./target/release/ymd auth login
+./target/release/ymd serve
+```
+
+Подробности, LaunchAgent и ограничения — `docs/14-macos.md`.
+
 ## Установка плагина Noctalia
 
 Плагин живёт в `noctalia/` и подключается симлинком (Noctalia перезаписывает

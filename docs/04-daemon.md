@@ -28,8 +28,9 @@ daemon/
   src/oauth.rs        Device Flow
   src/media.rs        HMAC-подписи, AES-CTR
   src/player.rs       GStreamer playbin3
-  src/mpris.rs        внешний MPRIS через playerctl (резерв)
-  src/mpris_server.rs исходящий MPRIS через zbus
+  src/mpris.rs        внешний MPRIS через playerctl (резерв, Linux)
+  src/mpris_stub.rs   та же сигнатура для macOS: внешних плееров нет
+  src/mpris_server.rs исходящий MPRIS через zbus (Linux)
   src/cache.rs        офлайн-кэш encraw
   src/config.rs       config.toml
   src/session.rs      capability-ключ
