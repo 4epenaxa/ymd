@@ -102,7 +102,9 @@ bash scripts/version.sh --tag && git push origin vX.Y.Z
 4. `AGENTS.md` — таблица состояния и «Следующий шаг».
 5. `docs/07-roadmap.md` — статус этапа.
 6. `bash scripts/docs-check.sh` — должен выдать `ok`. Проверяет: маркеры
-   устаревания, отставание доков от кода, модули без упоминания, **каждый
+   устаревания, отставание доков от **исходников** (`daemon`, `plasmoid`,
+   `app`, `noctalia`; изменения в `packaging`, `scripts`, `.github` —
+   подсказка, не блокер), модули без упоминания, **каждый
    маршрут `/v1/*` из `httpd.rs`**, совпадение копий `format.js`
    (`plasmoid/contents/ui/format.js` ↔ `app/qml/format.js`) и **версии
    в четырёх манифестах** (`scripts/version.sh --check`).

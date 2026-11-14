@@ -24,16 +24,26 @@ else
 fi
 
 # 2. Документация новее кода?
-code_ts=$(git log -1 --format=%ct -- daemon plasmoid app noctalia packaging 2>/dev/null || echo 0)
-docs_ts=$(git log -1 --format=%ct -- README.md AGENTS.md docs notes 2>/dev/null || echo 0)
+# Гейт — только исходники клиентов и демона: они меняют поведение.
+# Упаковка, скрипты и workflow — подсказка, а не блокер (правка в spec или
+# исключение тестов из rpm не требует раздела в docs).
+src_ts=$(git log -1 --format=%ct -- daemon plasmoid app noctalia 2>/dev/null || echo 0)
+pkg_ts=$(git log -1 --format=%ct -- packaging scripts .github 2>/dev/null || echo 0)
+docs_ts=$(git log -1 --format=%ct -- README.md AGENTS.md CONTRIBUTING.md CHANGELOG.md docs notes 2>/dev/null || echo 0)
 
-if [ "${code_ts:-0}" -gt "${docs_ts:-0}" ]; then
+if [ "${src_ts:-0}" -gt "${docs_ts:-0}" ]; then
   say "· код менялся позже документации — проверьте, что этап описан"
-  say "    код:  $(date -d "@$code_ts" '+%Y-%m-%d %H:%M')"
+  say "    код:  $(date -d "@$src_ts" '+%Y-%m-%d %H:%M')"
   say "    доки: $(date -d "@$docs_ts" '+%Y-%m-%d %H:%M')"
   status=1
 else
   say "· документация не старше кода"
+fi
+
+if [ "${pkg_ts:-0}" -gt "${docs_ts:-0}" ]; then
+  say "· упаковка или скрипты менялись позже документации (к сведению)"
+  say "    упаковка: $(date -d "@$pkg_ts" '+%Y-%m-%d %H:%M')"
+  say "    доки:     $(date -d "@$docs_ts" '+%Y-%m-%d %H:%M')"
 fi
 
 # 3. Файлы кода без упоминания в документации.
