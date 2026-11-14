@@ -1244,6 +1244,9 @@ local function apply(state)
       s.lyrics_loading = false
     end
     s.cover_url = state.track.cover or ""
+    -- Обложка нужна сразу после смены трека: `update()` вызывает
+    -- `ensure_cover()` до `refresh()`, когда `cover_url` ещё пуст.
+    ensure_cover()
   end
 
   local queue = state.queue or {}
