@@ -302,13 +302,23 @@ Unit: `ExecStart=%h/.local/bin/ymd serve`, `Restart=on-failure`,
 | M3 | офлайн-кэш `encraw` + AES-CTR, LRU, `download-album` |
 | M4 | «Моя волна» с автодогрузкой, `wave_feedback` |
 
-## Тексты песен (запланировано)
+## Тексты песен
 
-Разведка API выполнена: `GET /tracks/{id}/lyrics?format=TEXT|LRC|RICH_JSON`
-подписывается иначе, чем `file-info`; ответ содержит `downloadUrl` на S3,
-текст забирается вторым GET без авторизации. План: `api::lyrics()`,
-`GET /v1/lyrics`, `ymd lyrics`, кнопка «Текст» в попапе. Детали —
-`notes/lyrics-findings.md`.
+`api::lyrics(track_id, LyricsFormat::{Text, Lrc})`:
+
+1. подписанный `GET /tracks/{id}/lyrics?format=…&timeStamp=…&sign=…`
+   (ключ **windows**, данные `trackId + ts`, base64 **с паддингом** —
+   отличается от `file-info`);
+2. из ответа берётся `result.downloadUrl` (presigned S3, без авторизации);
+3. текст скачивается вторым запросом и отдаётся клиенту.
+
+`GET /v1/lyrics?id=&format=lrc|text` → `{id, format, text, writers, lyricId, major}`.
+Нет текста — `404`; нет токена — `503`; без ключа — `401`.
+CLI: `ymd lyrics <id> [--text] [--json]`.
+
+Ссылка S3 живёт минуты, поэтому кэшировать нужно **текст**, а не URL.
+Панель Noctalia парсит LRC, показывает окно ±2 строки и подсвечивает текущую
+строку по `positionMs`. Плазмоид и `ymd-qt` кнопку пока не получили.
 
 ## Безопасность
 

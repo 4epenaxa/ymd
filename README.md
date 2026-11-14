@@ -89,6 +89,7 @@ bash packaging/build-qt-deb.sh --arch amd64
 | `ymd quality [lossless\|hq\|nq\|lq]` | качество звука |
 | `ymd download <id>` / `download-album <id>` | офлайн-кэш |
 | `ymd cache list\|path\|remove\|info` | управление кэшем |
+| `ymd lyrics <id> [--text]` | текст песни (LRC или чистый) |
 | `ymd track <id>` / `stream <id>` | метаданные и URL потока |
 | `ymd auth login\|import\|status\|logout` | авторизация |
 | `ymd doctor` | проверка окружения |
@@ -104,7 +105,7 @@ bash packaging/build-qt-deb.sh --arch amd64
 | Плазмоид: компакт, попап, поиск, очередь, режимы | ✅ |
 | Отдельное приложение Qt/Kirigami: окно + трей | ✅ |
 | Пакеты `.deb` (amd64/arm64) | ✅ |
-| Тексты песен | разведка API, код не начат |
+| Тексты песен | ✅ демон, CLI, панель Noctalia |
 | Докачка после обрыва | не сделана |
 | Ynison | не сделана |
 

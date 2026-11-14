@@ -98,6 +98,15 @@ enum Command {
         #[command(subcommand)]
         cmd: CacheCommand,
     },
+    /// Текст песни (LRC с таймкодами или чистый текст).
+    Lyrics {
+        id: u64,
+        /// Чистый текст без таймкодов.
+        #[arg(long)]
+        text: bool,
+        #[arg(long)]
+        json: bool,
+    },
     /// Метаданные трека.
     Track {
         id: u64,
@@ -224,6 +233,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             Ok(())
         }
+        Command::Lyrics { id, text, json } => lyrics_cmd(id, text, json).await,
         Command::Track { id, json } => track_cmd(id, json).await,
         Command::Stream {
             id,
@@ -231,6 +241,41 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             quiet,
         } => stream_cmd(id, &quality, quiet).await,
     }
+}
+
+async fn lyrics_cmd(
+    id: u64,
+    plain: bool,
+    json: bool,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let client = api::Client::from_store()?;
+    let format = if plain {
+        api::LyricsFormat::Text
+    } else {
+        api::LyricsFormat::Lrc
+    };
+    let lyrics = client.lyrics(id, format).await?;
+
+    if json {
+        println!(
+            "{}",
+            serde_json::json!({
+                "id": id,
+                "format": lyrics.format,
+                "text": lyrics.text,
+                "writers": lyrics.writers,
+                "lyricId": lyrics.lyric_id,
+                "major": lyrics.major,
+            })
+        );
+        return Ok(());
+    }
+
+    println!("{}", lyrics.text.trim_end());
+    if !lyrics.writers.is_empty() {
+        eprintln!("авторы: {}", lyrics.writers.join(", "));
+    }
+    Ok(())
 }
 
 async fn search_cmd(

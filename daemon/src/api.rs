@@ -714,6 +714,117 @@ fn collect_sequence(result: &Value) -> Vec<Value> {
         .unwrap_or_default()
 }
 
+/// Формат текста песни.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LyricsFormat {
+    /// Чистый текст без таймкодов.
+    Text,
+    /// LRC с таймкодами `[mm:ss.xx]`.
+    Lrc,
+}
+
+impl LyricsFormat {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Text => "TEXT",
+            Self::Lrc => "LRC",
+        }
+    }
+
+    pub fn parse(value: &str) -> Self {
+        match value.trim().to_ascii_lowercase().as_str() {
+            "text" | "plain" => Self::Text,
+            _ => Self::Lrc,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Lyrics {
+    pub text: String,
+    pub format: &'static str,
+    pub writers: Vec<String>,
+    pub lyric_id: Option<u64>,
+    pub major: Option<String>,
+}
+
+impl Client {
+    /// Текст песни: подписанный `/tracks/{id}/lyrics` → presigned S3 → сам текст.
+    ///
+    /// Подпись отличается от `file-info`: ключ windows, данные `trackId + ts`,
+    /// base64 полный (см. `notes/lyrics-findings.md`).
+    pub async fn lyrics(&self, track_id: u64, format: LyricsFormat) -> Result<Lyrics, ApiError> {
+        let ts = crate::media::now_ts();
+        let sign = crate::media::sign_lyrics(
+            crate::media::SecretKey::Windows.as_str(),
+            track_id,
+            ts,
+        );
+
+        let value = self
+            .get_with_client(
+                &format!("/tracks/{track_id}/lyrics"),
+                &[
+                    ("format", format.as_str().to_string()),
+                    ("timeStamp", ts.to_string()),
+                    ("sign", sign),
+                ],
+                crate::media::DESKTOP_CLIENT,
+            )
+            .await?;
+
+        let result = value.get("result").cloned().unwrap_or(Value::Null);
+        let url = result
+            .get("downloadUrl")
+            .and_then(Value::as_str)
+            .or_else(|| result.get("download_url").and_then(Value::as_str))
+            .ok_or_else(|| ApiError::Status {
+                status: 404,
+                body: "у трека нет текста".to_string(),
+            })?;
+
+        let text = self.fetch_text(url).await?;
+
+        let writers = result
+            .get("writers")
+            .and_then(Value::as_array)
+            .map(|items| {
+                items
+                    .iter()
+                    .filter_map(Value::as_str)
+                    .map(str::to_string)
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        Ok(Lyrics {
+            text,
+            format: format.as_str(),
+            writers,
+            lyric_id: result.get("lyricId").and_then(Value::as_u64),
+            major: result
+                .get("major")
+                .and_then(|major| major.get("prettyName"))
+                .and_then(Value::as_str)
+                .map(str::to_string),
+        })
+    }
+
+    /// GET по presigned-ссылке: без авторизации и без заголовков клиента.
+    async fn fetch_text(&self, url: &str) -> Result<String, ApiError> {
+        let response = self.http.get(url).send().await?;
+        let status = response.status();
+        if !status.is_success() {
+            let body = response.text().await.unwrap_or_default();
+            return Err(ApiError::Status {
+                status: status.as_u16(),
+                body: body.chars().take(200).collect(),
+            });
+        }
+        Ok(response.text().await?)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

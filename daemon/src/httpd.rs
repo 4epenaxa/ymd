@@ -73,6 +73,7 @@ pub async fn serve(
         .route("/v1/health", get(health))
         .route("/v1/state", get(get_state))
         .route("/v1/search", get(search))
+        .route("/v1/lyrics", get(lyrics))
         .route("/v1/playlists", get(playlists))
         .route("/v1/playlist", get(playlist))
         .route("/v1/artist", get(artist))
@@ -157,6 +158,58 @@ struct SearchParams {
     q: String,
     #[serde(default)]
     page: Option<u32>,
+}
+
+#[derive(Debug, Deserialize)]
+struct LyricsParams {
+    id: String,
+    #[serde(default)]
+    format: Option<String>,
+}
+
+/// `GET /v1/lyrics?id=&format=lrc|text` — текст песни.
+///
+/// Ссылка на S3 живёт минуты, поэтому клиентам отдаётся сам текст; кэшировать
+/// имеет смысл на стороне клиента.
+async fn lyrics(
+    AxumState(shared): AxumState<Shared>,
+    headers: HeaderMap,
+    Query(params): Query<LyricsParams>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    if !authorized(&headers, &shared.key) {
+        return Err(unauthorized());
+    }
+
+    let track_id: u64 = params
+        .id
+        .trim()
+        .parse()
+        .map_err(|_| (StatusCode::BAD_REQUEST, "id должен быть числом".to_string()))?;
+
+    let client = crate::api::Client::from_store().map_err(|err| {
+        (
+            StatusCode::SERVICE_UNAVAILABLE,
+            format!("нет токена: {err}; выполните ymd auth login"),
+        )
+    })?;
+
+    let format = crate::api::LyricsFormat::parse(params.format.as_deref().unwrap_or("lrc"));
+    let lyrics = client.lyrics(track_id, format).await.map_err(|err| match err {
+        crate::api::ApiError::Status { status: 404, .. } => (
+            StatusCode::NOT_FOUND,
+            "у трека нет текста".to_string(),
+        ),
+        other => bad_gateway(other.to_string()),
+    })?;
+
+    Ok(Json(serde_json::json!({
+        "id": track_id,
+        "format": lyrics.format,
+        "text": lyrics.text,
+        "writers": lyrics.writers,
+        "lyricId": lyrics.lyric_id,
+        "major": lyrics.major,
+    })))
 }
 
 /// `GET /v1/search?q=...` — поиск через API Яндекса, упрощённый для виджета.

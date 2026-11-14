@@ -112,8 +112,8 @@ docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:latest \
 
 1. **Бар Noctalia**: артист теряется (хост режет ~22 символа), play/pause
    неразличимы (статичный глиф), нет retry при ошибке.
-2. **Тексты песен**: `api::lyrics()`, `GET /v1/lyrics`, `ymd lyrics`, кнопка в
-   попапе (разведка — `notes/lyrics-findings.md`).
+2. **Тексты песен — ✅ демон, CLI, Noctalia.** Плазмоид и `ymd-qt` кнопку ещё
+   не имеют: `api::lyrics()`, `GET /v1/lyrics`, `ymd lyrics` готовы.
 3. **Докачка после обрыва**: `.part` + `Range`, не начинать с нуля.
 4. **Ynison**: WebSocket-синхронизация между устройствами (опционально).
 

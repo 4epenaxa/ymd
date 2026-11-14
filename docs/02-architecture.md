@@ -111,6 +111,7 @@
 | GET | `/v1/health` | `{ok, version, uptime}` без ключа |
 | GET | `/v1/state` | снимок состояния |
 | GET | `/v1/search?q=&page=` | поиск, `{query, tracks: [...]}` |
+| GET | `/v1/lyrics?id=&format=lrc\|text` | текст песни, `{text, writers, major}` |
 | GET | `/v1/playlists` | плейлисты пользователя, `{playlists: [...]}` |
 | GET | `/v1/playlist?uid=&kind=` | плейлист и треки, `{playlist, tracks: [...]}` |
 | GET | `/v1/album?id=` | альбом и треки (volumes сплющены), `{album, tracks}` |

@@ -46,6 +46,11 @@ local s = {
   account_err = "",
   auth = nil,
   cache = nil,
+  -- текст песни
+  lyrics = nil,
+  lyrics_id = "",
+  lyrics_err = "",
+  lyrics_loading = false,
 }
 
 -- ui.image принимает ТОЛЬКО локальный путь (проп `path`), поэтому обложку
@@ -321,6 +326,13 @@ local function transport()
       controlSize = "sm",
       tooltip = "Моя волна",
       onClick = "ym_wave",
+    }),
+    ui.button({
+      text = s.view == "lyrics" and "К треку" or "Текст",
+      variant = "ghost",
+      controlSize = "sm",
+      tooltip = s.view == "lyrics" and "Вернуться к треку" or "Текст песни",
+      onClick = "ym_lyrics",
     }),
   })
 end
@@ -839,6 +851,120 @@ cache_line = function()
   return string.format("Кэш: %d МБ из %d МБ", used, limit)
 end
 
+
+-- ── текст песни ───────────────────────────────────────────────────────────
+
+local function lrc_parse(text)
+  local lines = {}
+  for line in (text or ""):gmatch("[^\n]+") do
+    local minutes, seconds, fraction, body = line:match("^%[(%d+):(%d+)%.(%d+)%]%s*(.*)$")
+    if minutes then
+      local frac = fraction
+      if #frac == 3 then
+        frac = frac:sub(1, 2)
+      end
+      local ms = tonumber(minutes) * 60000 + tonumber(seconds) * 1000 + tonumber(frac) * 10
+      if body and body ~= "" then
+        lines[#lines + 1] = { ms = ms, text = body }
+      end
+    end
+  end
+  return lines
+end
+
+local function lyric_index()
+  local lines = s.lyrics
+  if not lines or #lines == 0 then
+    return 0
+  end
+  local index = 0
+  for i, line in ipairs(lines) do
+    if line.ms <= s.position then
+      index = i
+    else
+      break
+    end
+  end
+  return index
+end
+
+local function request_lyrics()
+  if s.track_id == "" or s.lyrics_loading then
+    return
+  end
+  local id = s.track_id
+  s.lyrics_loading = true
+  s.lyrics_err = ""
+  ymd.get("/v1/lyrics?id=" .. ymd.urlencode(id) .. "&format=lrc", function(data, err)
+    s.lyrics_loading = false
+    if s.track_id ~= id then
+      return -- трек успел смениться
+    end
+    if err then
+      s.lyrics = {}
+      s.lyrics_err = tostring(err)
+    else
+      s.lyrics = lrc_parse(data and data.text)
+      s.lyrics_id = id
+    end
+    if s.view == "lyrics" then
+      render()
+    end
+  end)
+end
+
+local function lyrics_content()
+  if s.lyrics == nil or (s.lyrics_id ~= s.track_id and not s.lyrics_loading) then
+    request_lyrics()
+  end
+
+  local items = {}
+  if s.lyrics_err ~= "" then
+    items[#items + 1] = ui.label({ text = "Текст: " .. s.lyrics_err, color = "on_surface_variant", fontSize = 11 })
+    return items
+  end
+  local lines = s.lyrics
+  if not lines then
+    items[#items + 1] = ui.label({ text = "Загрузка…", color = "on_surface_variant", fontSize = 11 })
+    return items
+  end
+  if #lines == 0 then
+    items[#items + 1] = ui.label({ text = "Текста нет", color = "on_surface_variant", fontSize = 11 })
+    return items
+  end
+
+  local current = lyric_index()
+  -- окно ±2 строки: панель не должна превращаться в простыню
+  local from = math.max(1, current - 2)
+  local to = math.min(#lines, from + 7)
+
+  for i = from, to do
+    local line = lines[i]
+    local is_current = i == current and current > 0
+    items[#items + 1] = ui.label({
+      text = line.text,
+      color = is_current and "primary" or "on_surface_variant",
+      fontSize = is_current and 12 or 11,
+    })
+  end
+  return items
+end
+
+function ym_lyrics()
+  if s.view == "lyrics" then
+    s.view = "now"
+    render()
+    return
+  end
+  if s.track_id == "" then
+    return
+  end
+  s.view = "lyrics"
+  s.lyrics = nil
+  s.lyrics_err = ""
+  render()
+end
+
 -- ── сборка панели ─────────────────────────────────────────────────────────
 
 local function content_for_view()
@@ -856,6 +982,8 @@ local function content_for_view()
     return auth_content()
   elseif s.view == "settings" then
     return settings_content()
+  elseif s.view == "lyrics" then
+    return lyrics_content()
   end
   return now_content()
 end
@@ -1110,6 +1238,10 @@ local function apply(state)
     if new_id ~= s.track_id then
       s.track_id = new_id
       s.cover_path = ""
+      s.lyrics = nil
+      s.lyrics_id = ""
+      s.lyrics_err = ""
+      s.lyrics_loading = false
     end
     s.cover_url = state.track.cover or ""
   end

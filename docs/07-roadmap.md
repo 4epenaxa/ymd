@@ -20,7 +20,7 @@
 
 ## Ближайшие задачи
 
-### 1. Тексты песен
+### 1. Тексты песен — ✅ (демон, CLI, Noctalia)
 
 - `api::lyrics()`: подпись `trackId + timeStamp`, запрос `format=TEXT|LRC`,
   второй GET по `downloadUrl`.
