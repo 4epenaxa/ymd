@@ -309,6 +309,9 @@ pub struct AppState {
     /// true, после первого успешного запуска локального плеера: с этого момента
     /// внешний MPRIS больше не подменяет состояние.
     owned: Arc<AtomicBool>,
+    /// Защита от повторного `advance` по целиком устаревшей позиции:
+    /// после смены трека GStreamer ещё тик отдаёт позицию прошлого потока.
+    end_guard: Arc<AtomicBool>,
     /// Защита от параллельных догрузок «Моей волны».
     wave_pending: Arc<AtomicBool>,
     /// Треки, ждущие последовательной загрузки.
@@ -330,6 +333,7 @@ impl AppState {
             player: None,
             local: Arc::new(AtomicBool::new(false)),
             owned: Arc::new(AtomicBool::new(false)),
+            end_guard: Arc::new(AtomicBool::new(false)),
             wave_pending: Arc::new(AtomicBool::new(false)),
             download_queue: Arc::new(Mutex::new(VecDeque::new())),
             download_worker: Arc::new(AtomicBool::new(false)),
@@ -365,7 +369,14 @@ impl AppState {
                 .get(st.queue.index)
                 .map(track_from_queue_item)
         });
-        st.position_ms = saved.position_ms;
+        // Позиция из прошлой сессии могла остаться на самом конце (или за ним):
+        // тогда первый `play` ничего не грузит, а пайплайн стоит на длительности.
+        let duration = st.track.as_ref().map(|track| track.duration_ms).unwrap_or(0);
+        st.position_ms = if duration > 0 && saved.position_ms + 500 >= duration {
+            0
+        } else {
+            saved.position_ms
+        };
         st.status = "paused".to_string();
         if let Some(player) = &self.player {
             player.set_volume(st.volume);
@@ -697,7 +708,14 @@ impl AppState {
             if st.status != "stopped"
                 && matches!(
                     op,
-                    "play_track" | "queue_play" | "queue_set" | "next" | "prev" | "play" | "toggle"
+                    "play_track"
+                        | "queue_play"
+                        | "queue_set"
+                        | "next"
+                        | "prev"
+                        | "advance"
+                        | "play"
+                        | "toggle"
                 )
             {
                 if let Some(url) = payload.and_then(|v| v.get("url")).and_then(Value::as_str) {
@@ -1511,7 +1529,16 @@ impl AppState {
             } else {
                 "paused"
             };
-            let changed = st.status != status || st.position_ms.abs_diff(position_ms) > 1500;
+            let duration = st.track.as_ref().map(|track| track.duration_ms).unwrap_or(0);
+            let position_ms = if duration > 0 {
+                position_ms.min(duration)
+            } else {
+                position_ms
+            };
+            // Позиция меняется каждый тик (< 1 с), поэтому сравниваем секунды:
+            // ровно одно обновление `rev` в секунду — этого ждут SSE-клиенты
+            // (панель Noctalia рисует прогресс по событиям, а не по таймеру).
+            let changed = st.status != status || position_ms / 1000 != st.position_ms / 1000;
             st.status = status.to_string();
             st.position_ms = position_ms;
             if changed {
@@ -1565,7 +1592,7 @@ impl AppState {
                 _ => "stopped",
             };
             let changed = st.status != status
-                || st.position_ms.abs_diff(snapshot.position_ms) > 1500
+                || snapshot.position_ms / 1000 != st.position_ms / 1000
                 || st
                     .track
                     .as_ref()
@@ -1656,6 +1683,30 @@ impl AppState {
                         .as_ref()
                         .map(|player| player.position_ms())
                         .unwrap_or(0);
+                    // Страховка: seek по устаревшей длительности уводит поток за
+                    // конец, EOS не приходит и позиция замирает — считаем это
+                    // концом трека, иначе очередь встаёт навсегда.
+                    let overrun = app
+                        .snapshot()
+                        .track
+                        .as_ref()
+                        .map(|track| track.duration_ms > 0 && position > track.duration_ms)
+                        .unwrap_or(false);
+                    if overrun {
+                        // Один тик после смены трека плеер ещё отдаёт позицию
+                        // прошлого потока — иначе проскочим пол-очереди.
+                        if !app.end_guard.swap(true, Ordering::SeqCst) {
+                            tracing::warn!(
+                                position_ms = position,
+                                "player position past duration, advancing"
+                            );
+                            if let Err(err) = app.command_async("advance", None).await {
+                                tracing::warn!("advance after overrun: {err}");
+                            }
+                        }
+                        continue;
+                    }
+                    app.end_guard.store(false, Ordering::SeqCst);
                     app.sync_local(position);
 
                     // «Моя волна»: догружаем партию заранее, чтобы не было паузы.
