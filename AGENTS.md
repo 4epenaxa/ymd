@@ -114,7 +114,8 @@ docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:latest \
    неразличимы (статичный глиф), нет retry при ошибке.
 2. **Тексты песен — ✅ демон, CLI, Noctalia.** Плазмоид и `ymd-qt` кнопку ещё
    не имеют: `api::lyrics()`, `GET /v1/lyrics`, `ymd lyrics` готовы.
-3. **Докачка после обрыва**: `.part` + `Range`, не начинать с нуля.
+3. **Докачка после обрыва — ✅ `.part` + `Range` + отпечаток ключа.**
+   Проверено: обрыв на 41 % → продолжение с 14 МиБ и успешное завершение.
 4. **Ynison**: WebSocket-синхронизация между устройствами (опционально).
 
 UI discovery и вход в Noctalia-панели готовы: `docs/design/noctalia.md`

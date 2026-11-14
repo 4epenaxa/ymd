@@ -6,13 +6,39 @@
 
 use std::collections::BTreeMap;
 use std::fs;
+use std::fs::OpenOptions;
 use std::io::Write;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
 use crate::api::{Client, Quality, Stream};
 use crate::state::Track;
+
+/// Метаданные частичного файла: привязка к ключу и полному размеру.
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+struct PartMeta {
+    key_sha: String,
+    total: u64,
+}
+
+/// Отпечаток ключа расшифровки — чтобы не склеить куски от разных запросов.
+fn key_sha(key: &[u8]) -> String {
+    use sha2::{Digest, Sha256};
+    hex::encode(Sha256::digest(key))
+}
+
+/// Первые байты файла — для определения контейнера при возобновлении.
+fn read_head(path: &Path) -> Vec<u8> {
+    use std::io::Read;
+    let mut buf = vec![0u8; 32];
+    if let Ok(mut file) = fs::File::open(path) {
+        if let Ok(n) = file.read(&mut buf) {
+            buf.truncate(n);
+        }
+    }
+    buf
+}
 
 /// Размер чанка при докачке. 1 МиБ — компромисс между оверхедом Range и памятью.
 const CHUNK: u64 = 1024 * 1024;
@@ -218,7 +244,9 @@ pub async fn download(
 
     let ext = extension(&stream.codec);
     let final_name = format!("{}.{}", track.id, ext);
-    let part_path = dir.join(format!("{}.part", track.id));
+    let part_name = format!("{}.{}.{}.part", track.id, stream.codec, quality.as_str());
+    let part_path = dir.join(&part_name);
+    let meta_path = dir.join(format!("{part_name}.json"));
 
     // Узнаём размер: одиночный байт по Range.
     let (_, total) = client
@@ -227,9 +255,45 @@ pub async fn download(
         .map_err(|e| format!("размер: {e}"))?;
     let total = total.ok_or_else(|| "сервер не отдал Content-Range".to_string())?;
 
-    let mut file = fs::File::create(&part_path).map_err(|e| format!("создать файл: {e}"))?;
+    // Докачка: продолжаем только если частичный файл принадлежит тому же
+    // треку, качеству и ключу расшифровки — иначе байты не сойдутся.
+    let fingerprint = key_sha(&key);
+    let resumable = fs::metadata(&part_path)
+        .ok()
+        .filter(|m| m.is_file() && m.len() > 0 && m.len() <= total)
+        .filter(|_| {
+            fs::read(&meta_path)
+                .ok()
+                .and_then(|raw| serde_json::from_slice::<PartMeta>(&raw).ok())
+                .is_some_and(|meta| meta.key_sha == fingerprint && meta.total == total)
+        })
+        .map(|m| m.len());
+
     let mut written = 0u64;
-    let mut first = Vec::new();
+    let mut file = match resumable {
+        Some(size) => {
+            written = size;
+            tracing::info!(track = %track.id, from = size, total, "resuming download");
+            OpenOptions::new()
+                .append(true)
+                .open(&part_path)
+                .map_err(|e| format!("открыть частичный файл: {e}"))?
+        }
+        None => {
+            let _ = fs::remove_file(&part_path);
+            fs::write(
+                &meta_path,
+                serde_json::to_vec(&PartMeta {
+                    key_sha: fingerprint,
+                    total,
+                })
+                .map_err(|e| format!("мета: {e}"))?,
+            )
+            .map_err(|e| format!("мета: {e}"))?;
+            fs::File::create(&part_path).map_err(|e| format!("создать файл: {e}"))?
+        }
+    };
+    let mut first = if written > 0 { read_head(&part_path) } else { Vec::new() };
 
     while written < total {
         let end = (written + CHUNK - 1).min(total - 1);
@@ -262,6 +326,7 @@ pub async fn download(
 
     let final_path = dir.join(&final_name);
     fs::rename(&part_path, &final_path).map_err(|e| format!("rename: {e}"))?;
+    let _ = fs::remove_file(&meta_path);
 
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -307,6 +372,24 @@ mod tests {
         assert_eq!(extension("mp3"), "mp3");
         assert_eq!(extension("flac-mp4"), "flac");
         assert_eq!(extension("aac-mp4"), "m4a");
+    }
+
+    #[test]
+    fn key_sha_is_stable_and_distinct() {
+        let key = [7u8; 16];
+        assert_eq!(key_sha(&key), key_sha(&key));
+        assert_ne!(key_sha(&key), key_sha(&[8u8; 16]));
+        assert_eq!(key_sha(&key).len(), 64);
+    }
+
+    #[test]
+    fn read_head_returns_prefix() {
+        let dir = std::env::temp_dir().join(format!("ymd-head-{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("x.part");
+        fs::write(&path, b"\0\0\0\x1cftypisom-rest").unwrap();
+        assert_eq!(&read_head(&path)[4..8], b"ftyp");
+        let _ = fs::remove_dir_all(&dir);
     }
 
     #[test]
