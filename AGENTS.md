@@ -75,6 +75,20 @@ docker run --rm -v "$PWD:/repo" docker.io/zricethezav/gitleaks:latest \
 Если Docker не видит каталог (CIFS, rootless) — локальный бинарь:
 `gitleaks detect --no-banner --redact`.
 
+### Релиз
+
+Версия одна на весь проект, источник истины — `Cargo.toml`
+(`[workspace.package]`); манифесты синхронизируются только скриптом.
+Тег — `vMAJOR.MINOR.PATCH`, релиз собирает `release.yml` по тегу.
+
+```bash
+bash scripts/version.sh --bump patch       # версия + раздел в CHANGELOG
+git commit -am "chore(release): X.Y.Z" && git push origin main
+bash scripts/version.sh --tag && git push origin vX.Y.Z
+```
+
+Подробности — `docs/13-versioning.md`, история — `CHANGELOG.md`.
+
 ## Документация обновляется автоматически
 
 Документация — часть этапа, а не отдельная задача. Этап не считается завершённым,
